@@ -1,10 +1,12 @@
 // Turkish — generated from en.ts. Must match TKey set (compile-checked).
 import type { TKey } from "./en";
+import { gravityBridgeEn } from "./gravitybridge";
 
 /**
  * Turkish i18n catalog. Must match the `TKey` set (compile-checked).
  */
 export const tr: Record<TKey, string> = {
+  ...gravityBridgeEn,
   // sidebar / nav / common
   "nav.dashboard": "Gösterge Paneli",
   "uptime.day": " gün",

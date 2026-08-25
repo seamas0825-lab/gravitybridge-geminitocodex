@@ -71,6 +71,7 @@ import { handleSystemRoutes } from "./management/system-routes";
 import { handleSidebarRoutes } from "./management/sidebar-routes";
 import { handleIntegrationRoutes } from "./management/integration-routes";
 import { handleNativeIntegrationRoutes } from "./management/native-integration-routes";
+import { handleGravityBridgeRoutes } from "./management/gravitybridge-routes";
 import type { ManagementContext } from "./management/context";
 import type { ManagementPrincipal } from "./management-auth";
 export type { ManagementApiDeps } from "./management/context";
@@ -79,6 +80,7 @@ import { CatalogGatherBusyError } from "../codex/catalog/provider-fetch";
 import type { CatalogDisposition, ConvergeCodex } from "../codex/convergence-types";
 import { normalizeCatalogDisposition } from "../codex/catalog-refresh-status";
 import { managementBodyTooLargeResponse } from "./management/body";
+import { isGravityBridgeMode } from "../gravitybridge/runtime";
 
 // installed npm version instead of a stale hardcode.
 export const VERSION = (() => {
@@ -138,6 +140,15 @@ export async function handleManagementAPI(
 ): Promise<Response | null> {
   if (!isAllowedManagementOrigin(req, config)) {
     return jsonResponse({ error: "cross-origin request blocked" }, 403, req, config);
+  }
+  if (
+    isGravityBridgeMode()
+    && !pathInManagementNamespace(url.pathname, "/api/gravitybridge")
+  ) {
+    return jsonResponse({
+      error: "GravityBridge product mode exposes only the Antigravity setup API.",
+      code: "PRODUCT_API_ONLY",
+    }, 404, req, config);
   }
   // Management bodies are small JSON (provider names, key ids, settings). Reject oversized
   // payloads before any handler buffers them — the data plane has its own decompression cap.
@@ -217,6 +228,7 @@ export async function handleManagementAPI(
   let routed: Response | null;
   try {
     routed = (await handleConfigRoutes(ctx))
+    ??     (await handleGravityBridgeRoutes(ctx))
     ??     (await handleStorageLogGuardRoutes(ctx))
     ??     (await handleLogsUsageRoutes(ctx))
     ??     (await handleRequestHistoryRoutes(ctx))

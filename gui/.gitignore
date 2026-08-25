@@ -8,7 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# GravityBridge commits the production dashboard so GitHub npm installs do not
+# need the GUI development toolchain.
+!dist/
+!dist/**
 dist-ssr
 *.local
 
@@ -25,4 +28,3 @@ dist-ssr
 
 # Local i18n lint dumps
 lint-i18n-*.txt
-

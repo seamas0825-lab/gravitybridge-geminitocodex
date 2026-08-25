@@ -264,6 +264,29 @@ export interface OcxConfig {
   openaiProviderTierVersion?: 1 | 2;
   /** One-time migration marker for Antigravity's static-catalog defaults. */
   googleAntigravityStaticCatalogVersion?: 1 | 2;
+  /**
+   * GravityBridge's reversible product-mode ownership record.
+   *
+   * The record contains configuration values only. OAuth credentials remain in the
+   * hardened local credential store and Codex auth is never copied here.
+   */
+  gravityBridge?: {
+    schema: 1;
+    acceptedRiskAt?: string;
+    configuredAt?: string;
+    baseline: {
+      providerPresent: boolean;
+      providerSelectedModels: { present: boolean; value?: string[] };
+      subagentModels: { present: boolean; value?: string[] };
+      injectionModel: { present: boolean; value?: string };
+      injectionEffort: { present: boolean; value?: string };
+      multiAgentGuidanceEnabled: { present: boolean; value?: boolean };
+      syncCodexSubagentDefaults: { present: boolean; value?: boolean };
+      multiAgentMode: { present: boolean; value?: "v1" | "default" | "v2" };
+      keepNativeChatGptOnV1: { present: boolean; value?: boolean };
+      clientIntegrations: { present: boolean; value?: OcxClientIntegrationsConfig };
+    };
+  };
   /** Claude Code inbound + launcher settings. */
   claudeCode?: OcxClaudeCodeConfig;
   /**

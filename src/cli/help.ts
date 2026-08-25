@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findCommand } from "./registry";
+import { isGravityBridgeMode } from "../gravitybridge/runtime";
 
 const repoRoot = dirname(fileURLToPath(new URL("../../package.json", import.meta.url)));
 
@@ -12,10 +13,30 @@ function packageVersion(): string {
 }
 
 export function printVersion(): void {
-  console.log(`opencodex ${packageVersion()}`);
+  console.log(`${isGravityBridgeMode() ? "gravitybridge" : "opencodex"} ${packageVersion()}`);
 }
 
 export function printUsage(): void {
+  if (isGravityBridgeMode()) {
+    console.log(`GravityBridge — Google Antigravity subagents for Codex
+
+Usage:
+  gravitybridge                    Start the local proxy and open the setup dashboard
+  gravitybridge start [--port N]   Start on port 10100 (or a chosen port)
+  gravitybridge gui                Open the dashboard, starting the proxy if needed
+  gravitybridge status             Check the local proxy and Codex integration
+  gravitybridge doctor             Diagnose local setup and connectivity
+  gravitybridge stop               Stop the proxy and restore native Codex routing
+  gravitybridge restore            Remove GravityBridge defaults and restore native Codex
+  gravitybridge restore --delete-google-login
+                                   Also remove the stored Antigravity OAuth login
+  gravitybridge --version          Print the installed version
+
+GravityBridge keeps the main Codex account/model unchanged. It configures spawned
+subagents as google-antigravity/gemini-3.7-flash with effort high only after a live
+route verification succeeds.`);
+    return;
+  }
   console.log(`opencodex (ocx) — Universal provider proxy for Codex
 
 Usage:
@@ -91,6 +112,10 @@ export function hasHelpFlag(values: string[]): boolean {
 }
 
 export function printSubcommandUsage(name: string | undefined): void {
+  if (isGravityBridgeMode()) {
+    printUsage();
+    return;
+  }
   const entry = name ? findCommand(name) : undefined;
   if (!entry) {
     console.error(`Unknown command: ${name ?? ""}`.trim());

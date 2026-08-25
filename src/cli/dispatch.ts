@@ -21,6 +21,10 @@ import { restoreNativeCodexAsync } from "../codex/inject";
 import { stripGrokConfig } from "../grok/inject";
 import { afterCatalogWriteHandleAppServers } from "../codex/app-server-processes";
 import { normalizeUpdateChannel, runGuiUpdateWorker } from "../update/job";
+import { saveConfigPreservingClaudeCode } from "../config";
+import { restoreGravityBridgeDefaults } from "../gravitybridge/core";
+import { isGravityBridgeMode } from "../gravitybridge/runtime";
+import { removeCredential } from "../oauth/store";
 
 export interface CliDispatchDeps {
   args: string[];
@@ -64,11 +68,36 @@ const commandRunners: Record<string, CommandRunner> = {
     // Downtime warning lives HERE, not in handleStop: `restart`/tray-restart callers
     // re-start the proxy immediately, so warning there would contradict the next line.
     if (await deps.handleStop()) {
-      console.log("⚠️  Codex/Claude requests through the proxy will fail until it is restarted ('ocx start' or 'ocx service start').");
+      console.log(isGravityBridgeMode()
+        ? "GravityBridge stopped and native Codex routing was restored. Restart with: gravitybridge"
+        : "⚠️  Codex/Claude requests through the proxy will fail until it is restarted ('ocx start' or 'ocx service start').");
     }
     return Number(process.exitCode ?? 0);
   },
   restore: async deps => {
+    if (isGravityBridgeMode()) {
+      const restoreArgs = deps.args.slice(1);
+      const deleteCredential = restoreArgs.includes("--delete-google-login");
+      if (restoreArgs.some(arg => arg !== "--delete-google-login")) {
+        console.error("Usage: gravitybridge restore [--delete-google-login]");
+        return 64;
+      }
+      const config = deps.loadConfig();
+      const restored = restoreGravityBridgeDefaults(config);
+      if (restored.changed) saveConfigPreservingClaudeCode(config);
+      if (deleteCredential) await removeCredential("google-antigravity");
+      const native = await restoreNativeCodexAsync();
+      if (!native.success) {
+        console.error(`⚠️  ${native.message}`);
+        return 1;
+      }
+      console.log(`✅ ${native.message}`);
+      console.log(restored.changed
+        ? "GravityBridge defaults were removed and Codex is native again."
+        : "GravityBridge was already restored; Codex is native.");
+      if (deleteCredential) console.log("Google Antigravity login was deleted from GravityBridge.");
+      return 0;
+    }
     const restoreJson = deps.args[1] === "--json";
     if (deps.args[1] === "back") {
       // Reverse switch: re-point plain `codex` at the RUNNING proxy without touching its
@@ -172,6 +201,16 @@ const commandRunners: Record<string, CommandRunner> = {
   },
   doctor: async deps => {
     const doctorArgs = deps.args.slice(1);
+    if (isGravityBridgeMode()) {
+      if (doctorArgs.length > 0) {
+        console.error("Usage: gravitybridge doctor");
+        return 64;
+      }
+      await deps.handleStatus();
+      console.log("");
+      console.log("For a live route self-test, open the dashboard and choose 'Run self-test again'.");
+      return Number(process.exitCode ?? 0);
+    }
     const { RECOVER_ZERO_BYTE_COORDINATOR_FLAG, runDoctor } = await import("./doctor");
     await runDoctor(doctorArgs);
     if (!doctorArgs.includes("--fix-codex-runtime") && !doctorArgs.includes(RECOVER_ZERO_BYTE_COORDINATOR_FLAG)) {
@@ -630,4 +669,3 @@ async function handleDesktopAppRestart(log: Pick<Console, "log" | "error">): Pro
       }
   }
 }
-

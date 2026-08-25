@@ -1,30 +1,17 @@
 {
-  "name": "@bitkyc08/opencodex",
-  "version": "2.33.0",
-  "description": "Universal provider proxy for OpenAI Codex & Claude Code — use any LLM with Codex CLI/App/SDK and Claude Code",
+  "name": "gravitybridge",
+  "version": "0.1.0",
+  "description": "One-click Google Antigravity subagents for Codex, with verified routing and reversible local configuration",
   "type": "module",
-  "main": "./bin/package-main.mjs",
-  "exports": {
-    ".": {
-      "bun": "./src/index.ts",
-      "default": "./bin/package-main.mjs"
-    },
-    "./package.json": "./package.json"
-  },
   "bin": {
-    "opencodex": "./bin/ocx.mjs",
-    "ocx": "./bin/ocx.mjs"
+    "gravitybridge": "./bin/gravitybridge.mjs"
   },
   "files": [
-    "bin",
+    "bin/gravitybridge.mjs",
     "src",
     "gui/dist",
-    "assets/banner.png",
-    "assets/architecture.png",
-    "assets/claude-code-models.gif",
-    "assets/codex-app-picker.png",
     "README.md",
-    "AGENTS_INSTALL.md",
+    "NOTICE",
     "LICENSE"
   ],
   "engines": {
@@ -34,21 +21,21 @@
     "bun"
   ],
   "scripts": {
-    "dev": "bun run src/cli/index.ts start",
+    "dev": "GRAVITYBRIDGE_MODE=1 OPENCODEX_HOME=~/.gravitybridge bun run src/cli/index.ts start",
     "dev:proxy": "bun run src/cli/index.ts start",
     "dev:gui": "cd gui && bun run dev",
     "start": "bun run src/cli/index.ts start",
-    "test": "bun scripts/test.ts",
+    "test": "bun run test:product",
+    "test:product": "bun scripts/test.ts tests/gravitybridge-core.test.ts tests/gravitybridge-routes.test.ts tests/gravitybridge-cli.test.ts tests/antigravity-baseurl-override.test.ts tests/antigravity-static-catalog.test.ts tests/google-antigravity-oauth.test.ts tests/google-antigravity-replay.test.ts tests/google-antigravity-wire.test.ts tests/subagent-defaults.test.ts tests/subagent-fallback-handle-responses.test.ts tests/subagent-model-fallback-api.test.ts tests/subagent-model-fallback.test.ts tests/subagent-roster-retention.test.ts tests/codex-inject.test.ts tests/codex-inject-integration.test.ts tests/oauth-callback-server.test.ts tests/oauth-login-open-browser.test.ts tests/server-management-auth.test.ts",
+    "test:upstream": "bun scripts/test.ts",
     "typecheck": "bun x tsc --noEmit",
     "audit:high": "bun audit --audit-level=high && cd gui && bun audit --audit-level=high",
     "privacy:scan": "bun scripts/privacy-scan.ts",
     "generate:model-metadata": "bun scripts/generate-model-metadata.ts",
-    "build:gui": "cd gui && bun install --frozen-lockfile && bun run build && cd .. && bun run prepare:package",
+    "build:gui": "cd gui && bun install --frozen-lockfile && bun run build:gravitybridge && cd .. && bun run prepare:package",
     "prepare:package": "bun scripts/prepare-package.ts",
     "prepack": "bun run prepare:package",
     "prepublishOnly": "bun run audit:high && bun run typecheck && bun run build:gui",
-    "release": "bun scripts/release.ts",
-    "release:watch": "bun scripts/release.ts watch",
     "prepush": "bun run typecheck && bun run lint:gui:if-changed && bun run test && bun run privacy:scan && bun run doctor:gui:if-changed",
     "lint:gui": "cd gui && bun run lint",
     "lint:gui:if-changed": "bun scripts/lint-gui-if-changed.ts",
@@ -77,30 +64,19 @@
   },
   "keywords": [
     "codex",
-    "openai",
-    "proxy",
-    "llm",
-    "ollama",
-    "anthropic",
-    "responses-api",
-    "claude-code",
-    "claude",
-    "codex-cli",
+    "subagents",
+    "antigravity",
     "gemini",
-    "grok",
-    "deepseek",
-    "chatgpt",
-    "llm-proxy",
-    "ai-gateway",
-    "openrouter"
+    "google-oauth",
+    "responses-api"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lidge-jun/opencodex.git"
+    "url": "git+https://github.com/seamas0825-lab/gravitybridge.git"
   },
-  "homepage": "https://lidge-jun.github.io/opencodex/",
+  "homepage": "https://github.com/seamas0825-lab/gravitybridge#readme",
   "bugs": {
-    "url": "https://github.com/lidge-jun/opencodex/issues"
+    "url": "https://github.com/seamas0825-lab/gravitybridge/issues"
   },
   "license": "MIT"
 }

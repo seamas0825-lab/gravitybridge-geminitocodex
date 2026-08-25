@@ -1,9 +1,11 @@
 import type { TKey } from "./en";
+import { gravityBridgeZh } from "./gravitybridge";
 
 /**
  * Chinese i18n catalog; must match the `TKey` set (compile-checked).
  */
 export const zh: Record<TKey, string> = {
+  ...gravityBridgeZh,
   // sidebar / nav / common
   "nav.dashboard": "仪表盘",
   "uptime.day": "天",

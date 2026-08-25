@@ -827,6 +827,38 @@ const clientIntegrationsSchema = z.object({
   "claude-desktop": z.boolean().optional().catch(undefined),
 }).passthrough();
 
+const gravityBridgeSavedStringSchema = z.object({
+  present: z.boolean(),
+  value: z.string().optional(),
+}).strict();
+const gravityBridgeSavedBooleanSchema = z.object({
+  present: z.boolean(),
+  value: z.boolean().optional(),
+}).strict();
+const gravityBridgeStateSchema = z.object({
+  schema: z.literal(1),
+  acceptedRiskAt: z.string().datetime().optional(),
+  configuredAt: z.string().datetime().optional(),
+  baseline: z.object({
+    providerPresent: z.boolean(),
+    providerSelectedModels: z.object({ present: z.boolean(), value: z.array(z.string()).optional() }).strict(),
+    subagentModels: z.object({ present: z.boolean(), value: z.array(z.string()).optional() }).strict(),
+    injectionModel: gravityBridgeSavedStringSchema,
+    injectionEffort: gravityBridgeSavedStringSchema,
+    multiAgentGuidanceEnabled: gravityBridgeSavedBooleanSchema,
+    syncCodexSubagentDefaults: gravityBridgeSavedBooleanSchema,
+    multiAgentMode: z.object({
+      present: z.boolean(),
+      value: z.enum(["v1", "default", "v2"]).optional(),
+    }).strict(),
+    keepNativeChatGptOnV1: gravityBridgeSavedBooleanSchema,
+    clientIntegrations: z.object({
+      present: z.boolean(),
+      value: clientIntegrationsSchema.optional(),
+    }).strict(),
+  }).strict(),
+}).strict();
+
 const agentTaskRecoverySchema = z.object({
   enabled: z.boolean().optional(),
   model: z.string().trim().min(1).optional(),
@@ -873,6 +905,7 @@ const configSchema = z.object({
   openaiProviderTierVersion: z.union([z.literal(1), z.literal(2)]).optional(),
   // Invalid hand edits must not discard an otherwise usable config.
   googleAntigravityStaticCatalogVersion: z.union([z.literal(1), z.literal(2)]).optional().catch(undefined),
+  gravityBridge: gravityBridgeStateSchema.optional().catch(undefined),
   clientIntegrations: clientIntegrationsSchema.optional().catch(undefined),
   providerContextCaps: z.record(z.string(), z.number().int().positive()).optional(),
   contextCapValue: z.number().int().positive().optional(),

@@ -68,6 +68,13 @@ import {
   grokSyncFailureMessage,
   reconcileEnsureDesiredIntegrations,
 } from "./ensure-desired-integrations";
+import {
+  GRAVITYBRIDGE_EFFORT,
+  GRAVITYBRIDGE_MODEL_SLUG,
+  gravityBridgeConfigurationMatches,
+  prepareGravityBridgeStartup,
+} from "../gravitybridge/core";
+import { GRAVITYBRIDGE_PUBLIC_COMMANDS, isGravityBridgeMode } from "../gravitybridge/runtime";
 
 /**
  * A failed shell-hook reconcile is not cosmetic: a stale hook keeps sourcing
@@ -99,11 +106,20 @@ initializeNodeLauncherContext();
 const head = await runCli(process.argv.slice(2));
 const args = head.args;
 const command = head.command;
+const gravityBridgeMode = isGravityBridgeMode();
+
+if (gravityBridgeMode && command && !GRAVITYBRIDGE_PUBLIC_COMMANDS.has(command)) {
+  console.error(`Unknown GravityBridge command: ${command}`);
+  console.error("Run 'gravitybridge --help' for the supported commands.");
+  process.exit(64);
+}
 
 function parsePortOption(): number | undefined {
   if (args.length === 1) return undefined;
   if (args.length !== 3 || args[1] !== "--port") {
-    console.error("Usage: ocx start [--port <port>]");
+    console.error(gravityBridgeMode
+      ? "Usage: gravitybridge start [--port <port>]"
+      : "Usage: ocx start [--port <port>]");
     process.exit(1);
   }
   const portIdx = args.indexOf("--port");
@@ -184,7 +200,7 @@ async function chooseListenPort(requestedPort?: number): Promise<number> {
       ...(reservedLoopbackPort !== undefined ? { reservedPort: reservedLoopbackPort } : {}),
     });
     if (preferred > 0 && selected !== preferred) {
-      console.log(`⚠️  Port ${preferred} is busy; starting opencodex on ${selected}.`);
+      console.log(`⚠️  Port ${preferred} is busy; starting ${gravityBridgeMode ? "GravityBridge" : "opencodex"} on ${selected}.`);
     }
     if (shouldPersistSelectedPort(config.port, selected, preferred)) {
       config.port = selected;
@@ -218,6 +234,10 @@ async function findProxyOwnerBeforeJournalRecovery(
 }
 
 async function handleStart(options: { block?: boolean } = {}) {
+  if (gravityBridgeMode) {
+    const productConfig = loadConfig();
+    if (prepareGravityBridgeStartup(productConfig)) saveConfig(productConfig);
+  }
   // Native (WinSW) service mode has no batch wrapper to read the service token file
   // into the environment, so the app loads it here before the server binds. The server
   // auth path reads OPENCODEX_API_AUTH_TOKEN from the environment.
@@ -244,7 +264,7 @@ async function handleStart(options: { block?: boolean } = {}) {
   // Interactive-only update prompt. Must run BEFORE we bind a port / write a
   // PID: choosing "Update now" installs globally and exits, so we never want a
   // live daemon holding resources while it overwrites its own binary.
-  await maybeShowUpdatePrompt();
+  if (!gravityBridgeMode) await maybeShowUpdatePrompt();
 
   // Port selection is check-then-bind: a concurrent `ocx start`/`ensure` can win the port
   // between the probe and Bun.serve. Soft starts may re-pick; hard-pinned `--port` retries
@@ -263,7 +283,7 @@ async function handleStart(options: { block?: boolean } = {}) {
       // Prewarm the live provider model cache as soon as the port is bound so the
       // first GUI /v1/models (and syncModelsToCodex below) share one discovery flight
       // instead of racing duplicate upstream /models fetches.
-      scheduleCatalogPrewarm();
+      if (!gravityBridgeMode) scheduleCatalogPrewarm();
       break;
     } catch (err) {
       if (!isAddrInUse(err) || attempt >= 2) throw err;
@@ -294,7 +314,7 @@ async function handleStart(options: { block?: boolean } = {}) {
 
   // Background proactive token refresh. No-op unless config.tokenGuardian.enabled; timer is unref'd
   // so it never keeps the process alive on its own. Stopped in syncCleanup so no refresh fires mid-drain.
-  const guardian = startTokenGuardian();
+  const guardian = gravityBridgeMode ? { stop: () => {} } : startTokenGuardian();
   // Design B upgrade path: keep retrying the one-time opencodex→openai history migration in the
   // background — the first `ocx start` after an update usually races the Codex app's DB lock.
   // Loopback-only (legacy mode still forward-tags) and respects syncResumeHistory opt-out.
@@ -311,7 +331,7 @@ async function handleStart(options: { block?: boolean } = {}) {
     // process expects Codex/Grok/env fences to still be in place.
     const recycling = isRecyclingForExit();
     if (!recycling) {
-      try { revertSystemEnv(); } catch { /* best-effort */ }
+      if (!gravityBridgeMode) try { revertSystemEnv(); } catch { /* best-effort */ }
     }
     removePid(process.pid);
     removeRuntimePort(process.pid);
@@ -332,7 +352,7 @@ async function handleStart(options: { block?: boolean } = {}) {
     // Grok fence is shared state we must not remove — that service keeps running and would be
     // left pointing nowhere. This guard also covers signal-driven exits, which is the path that
     // would otherwise bypass handleStop's gate entirely.
-    if (!recycling && !preserveRouting && serviceEnvironmentOwnedHere()) {
+    if (!gravityBridgeMode && !recycling && !preserveRouting && serviceEnvironmentOwnedHere()) {
       try { stripGrokConfig(); } catch { /* best-effort restore */ }
     }
     return cleanupSucceeded;
@@ -355,7 +375,7 @@ async function handleStart(options: { block?: boolean } = {}) {
     }
     shuttingDown = true;
     shutdownStartedAt = now;
-    console.log("\n🛑 Shutting down opencodex proxy...");
+    console.log(gravityBridgeMode ? "\n🛑 Shutting down GravityBridge..." : "\n🛑 Shutting down opencodex proxy...");
     void (async () => {
       try {
         await drainAndShutdown(server, config.shutdownTimeoutMs ?? 5000);
@@ -375,11 +395,13 @@ async function handleStart(options: { block?: boolean } = {}) {
 
   // System-wide env injection AFTER signal handlers are registered (crash safety:
   // syncCleanup reverts even if injection itself or subsequent startup steps fail).
-  const systemEnv = await injectSystemEnv(port, config).catch(() => ({ injected: false }));
+  const systemEnv = gravityBridgeMode
+    ? { injected: false }
+    : await injectSystemEnv(port, config).catch(() => ({ injected: false }));
   // The hook is useful only for an installed Claude Code CLI. Reconcile instead of
   // appending unconditionally so stale OpenCodex-owned hooks are removed as well.
-  reportShellHookFailure(reconcileShellHook(systemEnv.injected));
-  await maybeShowStarPrompt(); // once-only Yes/No GitHub-star prompt on first interactive start
+  if (!gravityBridgeMode) reportShellHookFailure(reconcileShellHook(systemEnv.injected));
+  if (!gravityBridgeMode) await maybeShowStarPrompt(); // once-only Yes/No GitHub-star prompt on first interactive start
   // Codex sync owns the ready/failed verdict, but its successful transition is
   // deferred until the best-effort Claude roster reconciliation settles. This
   // keeps /readyz closed across both startup writes without making an optional
@@ -387,7 +409,7 @@ async function handleStart(options: { block?: boolean } = {}) {
   const startupSync = await reconcileClientStartupBeforeReady(
     readinessGate,
     gate => syncCodexOnStartIfEnabled(port, config, undefined, gate),
-    () => systemEnv.injected
+    () => gravityBridgeMode || systemEnv.injected
       ? Promise.resolve(null)
       : syncClaudeAgentDefsAtProxyStartup(config, port),
   );
@@ -401,11 +423,11 @@ async function handleStart(options: { block?: boolean } = {}) {
     const { warnIfStaleCodexAppServersAfterStartupWrite } = await import("../codex/app-server-processes");
     warnIfStaleCodexAppServersAfterStartupWrite({ log: console });
   }
-  if (!currentExternalCodexModelProvider() && !shouldInjectApiAuthHeader(config) && config.syncResumeHistory !== false) {
+  if (!gravityBridgeMode && !currentExternalCodexModelProvider() && !shouldInjectApiAuthHeader(config) && config.syncResumeHistory !== false) {
     historyGuardian = startHistoryMigrationGuardian();
   }
   // Build Desktop 3P alias registry so inbound claude-opus-4-8-{code} aliases (and legacy claude-opus-4-{code}) decode correctly.
-  try {
+  if (!gravityBridgeMode) try {
     const { fetchAllModels } = await import("../server/management-api");
     const { visibleNativeSlugs, filterCatalogVisibleModels } = await import("../codex/catalog");
     const models = filterCatalogVisibleModels(await fetchAllModels(config), config);
@@ -423,7 +445,7 @@ async function handleStart(options: { block?: boolean } = {}) {
   //
   // Gated on the persisted switch: without this, turning Grok off lasted exactly
   // one restart, because the toggle removed the fence and start wrote it back.
-  if (shouldSyncGrokOnStart(config)) try {
+  if (!gravityBridgeMode && shouldSyncGrokOnStart(config)) try {
     const { syncGrokConfig } = await import("../grok/sync");
     const r = await syncGrokConfig(port, config, config.hostname ? { hostname: config.hostname } : {});
     if (r.changed) console.log("   + Grok Build config updated (~/.grok/config.toml)");
@@ -435,6 +457,18 @@ async function handleStart(options: { block?: boolean } = {}) {
     // gone every grok turn retries against a refused connection with nothing in our log
     // to explain it. Name the failure and the one command that repairs it.
     console.error(`⚠️  ${grokSyncFailureMessage(err)}`);
+  }
+  if (gravityBridgeMode) {
+    const host = probeHostname(config.hostname);
+    const dashboardUrl = `http://${host === "127.0.0.1" ? "localhost" : host}:${port}`;
+    console.log(`\n🌉 GravityBridge is ready: ${dashboardUrl}`);
+    if (!gravityBridgeConfigurationMatches(config)) {
+      console.log("   Codex is still native. Complete Google login and verification in the dashboard.");
+    }
+    if (process.stdout.isTTY && process.env.GRAVITYBRIDGE_NO_BROWSER !== "1") {
+      const { openUrl } = await import("../lib/open-url");
+      openUrl(dashboardUrl);
+    }
   }
   if (options.block ?? true) {
     setInterval(() => {}, 60_000);
@@ -639,7 +673,7 @@ async function restoreSharedClientStateAfterStop(): Promise<boolean> {
   }
 
   // A refused or thrown Grok strip is actionable because it would point Grok at a dead proxy.
-  try {
+  if (!gravityBridgeMode) try {
     const grok = stripGrokConfig();
     if (grok.changed) console.log(`↩️  ${grok.message}`);
     else if (!grok.ok) { restored = false; console.error(`⚠️  ${grok.message}`); }
@@ -731,7 +765,7 @@ async function handleStop() {
   }
   // Environment ownership is independent from service ownership. Always roll back
   // current-home variables; the helper refuses foreign markers on its own.
-  try { revertSystemEnv(); } catch { /* best-effort */ }
+  if (!gravityBridgeMode) try { revertSystemEnv(); } catch { /* best-effort */ }
   if (!ownershipBlocked) {
     if (!await restoreSharedClientStateAfterStop()) stopFailed = true;
   }
@@ -832,11 +866,60 @@ async function handleStatus() {
   const statusArgs = args.slice(1);
   const wantsJson = statusArgs.length === 1 && statusArgs[0] === "--json";
   if (statusArgs.length > 1 || (statusArgs.length === 1 && !wantsJson)) {
-    console.error("Usage: ocx status [--json]");
+    console.error(gravityBridgeMode
+      ? "Usage: gravitybridge status [--json]"
+      : "Usage: ocx status [--json]");
     process.exit(1);
   }
 
   const status = await collectStatus();
+  if (gravityBridgeMode) {
+    const { getCredential } = await import("../oauth/store");
+    let googleLoggedIn = false;
+    try {
+      googleLoggedIn = Boolean(getCredential("google-antigravity"));
+    } catch {
+      googleLoggedIn = false;
+    }
+    const productConfig = loadConfig();
+    const routeConfigured = gravityBridgeConfigurationMatches(productConfig);
+    const proxyRunning = Boolean(status.json.proxy.pid || status.json.proxy.health.ok);
+    const productStatus = {
+      product: "gravitybridge",
+      proxy: {
+        running: proxyRunning,
+        health: status.json.proxy.health.ok,
+        url: status.json.proxy.health.url,
+      },
+      dashboard: status.json.dashboard.url,
+      googleAntigravity: { loggedIn: googleLoggedIn },
+      subagent: {
+        configured: routeConfigured,
+        model: GRAVITYBRIDGE_MODEL_SLUG,
+        effort: GRAVITYBRIDGE_EFFORT,
+      },
+      codex: {
+        mainAccountPreserved: true,
+        mainModelPreserved: true,
+      },
+    };
+    if (wantsJson) {
+      console.log(JSON.stringify(productStatus, null, 2));
+      return;
+    }
+    console.log(`${proxyRunning ? "✅" : "❌"} GravityBridge: ${proxyRunning ? "running" : "not running"}`);
+    console.log(`   Health: ${status.healthLabel}`);
+    console.log(`   Dashboard: ${status.json.dashboard.url}`);
+    console.log(`   Google Antigravity: ${googleLoggedIn ? "signed in" : "sign-in required"}`);
+    console.log(`   Default Subagent: ${GRAVITYBRIDGE_MODEL_SLUG}`);
+    console.log(`   Reasoning effort: ${GRAVITYBRIDGE_EFFORT}`);
+    console.log(`   Codex main account/model: preserved`);
+    console.log(routeConfigured
+      ? "   Route: configured and previously verified"
+      : "   Route: not configured; finish sign-in and live verification in the dashboard");
+    if (!proxyRunning) console.log("   Start with: gravitybridge");
+    return;
+  }
   if (wantsJson) {
     console.log(JSON.stringify(status.json, null, 2));
     return;

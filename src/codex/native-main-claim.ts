@@ -36,7 +36,10 @@ export function rememberHardenedIdentity(path: string, identity: string): void {
 }
 
 export function nativeMainClaimPath(context: NativeProfileContext): string {
-  return join(context.codexHome, NATIVE_MAIN_CLAIM_DB);
+  const gravityBridgeClaimHome = process.env.GRAVITYBRIDGE_MODE === "1"
+    ? process.env.GRAVITYBRIDGE_NATIVE_CLAIM_HOME?.trim()
+    : undefined;
+  return join(gravityBridgeClaimHome || context.codexHome, NATIVE_MAIN_CLAIM_DB);
 }
 
 function errorCode(error: unknown): string | undefined {

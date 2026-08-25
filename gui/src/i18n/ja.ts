@@ -1,9 +1,11 @@
 import type { TKey } from "./en";
+import { gravityBridgeEn } from "./gravitybridge";
 
 /**
  * Japanese i18n catalog; must match the `TKey` set (compile-checked).
  */
 export const ja: Record<TKey, string> = {
+  ...gravityBridgeEn,
   // sidebar / nav / common
   "nav.dashboard": "ダッシュボード",
   "uptime.day": "日",

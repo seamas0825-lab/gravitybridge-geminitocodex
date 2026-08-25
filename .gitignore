@@ -1,5 +1,7 @@
 node_modules/
 dist/
+!gui/dist/
+!gui/dist/**
 .env
 *.log
 .DS_Store
@@ -49,6 +51,12 @@ devlog/**/security-advisory-draft*
 
 # Local development worktrees
 .worktrees/
+
+# Browser QA artifacts stay local; the built product dashboard is committed via
+# the explicit gui/dist exception above so GitHub npm installs work without a
+# separate frontend toolchain.
+.playwright-cli/
+output/
 
 # Test-generated artifacts
 # Trailing slash matched directories only, but the same tests also leave plain

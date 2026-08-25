@@ -1,7 +1,9 @@
 import type { TKey } from "./en";
+import { gravityBridgeZh } from "./gravitybridge";
 
 /** Traditional Chinese (Taiwan) UI strings — keys must match `en.ts` 1:1. */
 export const zhTW: Record<TKey, string> = {
+  ...gravityBridgeZh,
   "nav.dashboard": "儀表板",
   "nav.startup": "啟動安全",
   "nav.providers": "供應商",

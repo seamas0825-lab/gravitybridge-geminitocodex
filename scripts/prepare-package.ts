@@ -29,6 +29,7 @@ function chmodTree(path: string): void {
 }
 
 export function normalizePackageModes(packageRoot: string): void {
+  chmodIfRegularEntry(join(packageRoot, "bin", "gravitybridge.mjs"), 0o755);
   chmodIfRegularEntry(join(packageRoot, "bin", "ocx.mjs"), 0o755);
   chmodIfRegularEntry(join(packageRoot, "bin", "package-main.mjs"), 0o644);
   chmodTree(join(packageRoot, "gui", "dist"));

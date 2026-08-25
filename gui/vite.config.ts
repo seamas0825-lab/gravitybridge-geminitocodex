@@ -6,10 +6,24 @@ import react from '@vitejs/plugin-react'
 // `/healthz` version is not reachable yet.
 const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
 const proxyTarget = process.env.OPENCODEX_PROXY_TARGET
+const gravityBridgeMode = process.env.VITE_GRAVITYBRIDGE_MODE === '1'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'gravitybridge-entry',
+      transformIndexHtml: {
+        order: 'pre',
+        handler(html: string) {
+          return gravityBridgeMode
+            ? html.replace('/src/main.tsx', '/src/main-gravitybridge.tsx')
+            : html
+        },
+      },
+    },
+  ],
   define: { __APP_VERSION__: JSON.stringify(version) },
   /* [Decision Log]
   - 목적: 로컬 Vite GUI가 실행 중인 opencodex API를 same-origin으로 호출해 CORS 잡음 없이 실제 데이터를 보여준다.

@@ -1,10 +1,12 @@
 // German — generated from en.ts. Must match TKey set (compile-checked).
 import type { TKey } from "./en";
+import { gravityBridgeEn } from "./gravitybridge";
 
 /**
  * German i18n catalog, generated from en.ts. Must match the `TKey` set (compile-checked).
  */
 export const de: Record<TKey, string> = {
+  ...gravityBridgeEn,
   "nav.dashboard": "Übersicht",
   "uptime.day": "T",
   "uptime.hour": "Std",

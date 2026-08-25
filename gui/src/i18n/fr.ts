@@ -1,9 +1,11 @@
 import type { TKey } from "./en";
+import { gravityBridgeFr } from "./gravitybridge";
 
 /**
  * French i18n catalog. Must match the `TKey` set.
  */
 export const fr: Record<TKey, string> = {
+  ...gravityBridgeFr,
   "nav.dashboard": "Tableau de bord",
   "uptime.day": "j",
   "uptime.hour": "h",

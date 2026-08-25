@@ -1832,12 +1832,20 @@ export function startServer(port?: number, deps: StartServerDeps = {}): Server<W
   boundPort = actualPort;
   setCorsOrigin(actualPort);
 
-  console.log(`🚀 opencodex proxy running on http://localhost:${actualPort}`);
-  console.log(`   POST /v1/responses → provider translation`);
-  console.log(`   POST /v1/chat/completions → OpenAI-compatible clients`);
-  console.log(`   GET  /healthz      → health check`);
-  console.log(`   GET  /api/*        → management API`);
-  console.log(`   GET  /             → GUI dashboard`);
+  const productName = process.env.GRAVITYBRIDGE_MODE === "1" ? "GravityBridge" : "opencodex proxy";
+  console.log(`🚀 ${productName} running on http://localhost:${actualPort}`);
+  if (process.env.GRAVITYBRIDGE_MODE === "1") {
+    console.log("   POST /v1/responses          → Codex and Antigravity Subagents");
+    console.log("   GET  /healthz               → health check");
+    console.log("   GET  /api/gravitybridge/*   → setup API");
+    console.log("   GET  /                      → setup dashboard");
+  } else {
+    console.log(`   POST /v1/responses → provider translation`);
+    console.log(`   POST /v1/chat/completions → OpenAI-compatible clients`);
+    console.log(`   GET  /healthz      → health check`);
+    console.log(`   GET  /api/*        → management API`);
+    console.log(`   GET  /             → GUI dashboard`);
+  }
 
   if (loopbackServer) {
     // Loud on every start, not once at enable time. An operator who inherits a config, or

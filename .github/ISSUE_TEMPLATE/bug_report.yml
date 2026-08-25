@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a defect in the proxy, CLI, dashboard, provider adapter, or packaging.
+description: Report a defect in the GravityBridge CLI, dashboard, Antigravity connection, or packaging.
 labels:
   - bug
 body:
@@ -16,10 +16,7 @@ body:
       options:
         - Codex CLI
         - Codex App
-        - Codex SDK
-        - Claude Code
-        - Direct HTTP/API client
-        - OpenCodex dashboard
+        - GravityBridge dashboard
         - Other
     validations:
       required: true
@@ -28,19 +25,16 @@ body:
     id: area
     attributes:
       label: Area
-      description: Which part of OpenCodex is affected?
+      description: Which part of GravityBridge is affected?
       options:
         - CLI
         - Proxy and routing
         - Dashboard
-        - Provider adapter
-        - Authentication and account pool
-        - Catalog / models
-        - Streaming
-        - Tools / MCP / web search
+        - Google sign-in
+        - Antigravity model verification
+        - Codex configuration or restoration
         - Installation or packaging
-        - Service lifecycle
-        - Platform (Windows / macOS / Linux)
+        - Platform (macOS)
         - Documentation
         - Other
     validations:
@@ -62,8 +56,8 @@ body:
       description: |
         Exact commands, steps, configuration shape, and inputs. If the problem is intermittent or not yet consistently reproducible, explain what you have observed and under which conditions.
       placeholder: |
-        1. ocx start --port 10100
-        2. Send a request to /v1/responses with ...
+        1. gravitybridge start --port 10100
+        2. Sign in and run the verification test
         3. Observe ...
     validations:
       required: true
@@ -72,8 +66,8 @@ body:
     id: version
     attributes:
       label: Version
-      description: Installed `@bitkyc08/opencodex` version or commit SHA.
-      placeholder: "2.7.31"
+      description: Installed GravityBridge version or commit SHA.
+      placeholder: "0.1.0"
     validations:
       required: true
 
@@ -82,16 +76,16 @@ body:
     attributes:
       label: Operating system
       description: OS name and version.
-      placeholder: Windows 11 24H2, macOS 15.5, Ubuntu 24.04
+      placeholder: macOS 15.5
     validations:
       required: true
 
   - type: input
     id: provider-model
     attributes:
-      label: Provider and model
-      description: Required only when the problem is provider-specific.
-      placeholder: "anthropic / claude-sonnet-4-20250514"
+      label: Advertised model
+      description: The Antigravity model shown in the dashboard, if relevant.
+      placeholder: "google-antigravity/gemini-3.7-flash"
 
   - type: textarea
     id: logs
@@ -110,7 +104,7 @@ body:
     id: config
     attributes:
       label: Redacted configuration
-      description: Share a redacted config snippet if the bug depends on provider or routing setup.
+      description: Share a redacted config snippet if the bug depends on Codex routing. Never include OAuth credentials.
       render: json
 
   - type: checkboxes
