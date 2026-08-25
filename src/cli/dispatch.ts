@@ -25,6 +25,8 @@ import { saveConfigPreservingClaudeCode } from "../config";
 import { restoreGravityBridgeDefaults } from "../gravitybridge/core";
 import { isGravityBridgeMode } from "../gravitybridge/runtime";
 import { removeCredential } from "../oauth/store";
+import { getCodexHome } from "../codex/paths";
+import { runGravityBridgeTargetWorker, selectedGravityBridgeHomes } from "../gravitybridge/codex-targets";
 
 export interface CliDispatchDeps {
   args: string[];
@@ -83,15 +85,18 @@ const commandRunners: Record<string, CommandRunner> = {
         return 64;
       }
       const config = deps.loadConfig();
+      const homes = selectedGravityBridgeHomes(config);
       const restored = restoreGravityBridgeDefaults(config);
       if (restored.changed) saveConfigPreservingClaudeCode(config);
       if (deleteCredential) await removeCredential("google-antigravity");
-      const native = await restoreNativeCodexAsync();
-      if (!native.success) {
-        console.error(`⚠️  ${native.message}`);
+      const targets = (homes.length > 0 ? homes : [getCodexHome()])
+        .map(home => runGravityBridgeTargetWorker("restore", home, config.port));
+      const failed = targets.filter(target => !target.ok);
+      if (failed.length > 0) {
+        for (const target of failed) console.error(`⚠️  ${target.home}: ${target.error ?? target.code ?? "restore failed"}`);
         return 1;
       }
-      console.log(`✅ ${native.message}`);
+      console.log(`✅ Restored ${targets.length} Codex client${targets.length === 1 ? "" : "s"}.`);
       console.log(restored.changed
         ? "GravityBridge defaults were removed and Codex is native again."
         : "GravityBridge was already restored; Codex is native.");

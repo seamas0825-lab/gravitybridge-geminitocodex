@@ -22,7 +22,7 @@ export function printUsage(): void {
 
 Usage:
   gravitybridge                    Start the local proxy and open the setup dashboard
-  gravitybridge start [--port N]   Start on port 10100 (or a chosen port)
+  gravitybridge start [--port N]   Start on port 10101 (or a chosen port)
   gravitybridge gui                Open the dashboard, starting the proxy if needed
   gravitybridge status             Check the local proxy and Codex integration
   gravitybridge doctor             Diagnose local setup and connectivity

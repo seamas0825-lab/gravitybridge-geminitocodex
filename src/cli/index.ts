@@ -74,7 +74,14 @@ import {
   gravityBridgeConfigurationMatches,
   prepareGravityBridgeStartup,
 } from "../gravitybridge/core";
-import { GRAVITYBRIDGE_PUBLIC_COMMANDS, isGravityBridgeMode } from "../gravitybridge/runtime";
+import { GRAVITYBRIDGE_PUBLIC_COMMANDS, isGravityBridgeMode, runtimeDefaultPort } from "../gravitybridge/runtime";
+import {
+  discoverGravityBridgeCodexHomes,
+  inspectGravityBridgeCodexTarget,
+  runGravityBridgeTargetWorker,
+  selectedGravityBridgeHomes,
+  startGravityBridgeTargetGuardian,
+} from "../gravitybridge/codex-targets";
 
 /**
  * A failed shell-hook reconcile is not cosmetic: a stale hook keeps sourcing
@@ -156,7 +163,7 @@ function startArgv(port?: number): string[] {
 
 async function chooseListenPort(requestedPort?: number): Promise<number> {
   const config = loadConfig();
-  const preferred = requestedPort ?? config.port ?? 10100;
+  const preferred = requestedPort ?? config.port ?? runtimeDefaultPort();
   const hardPin = requestedPort !== undefined && requestedPort > 0;
   const reservedLoopbackPort = config.unauthenticatedLoopbackListener?.enabled
     ? config.unauthenticatedLoopbackListener.port
@@ -319,6 +326,7 @@ async function handleStart(options: { block?: boolean } = {}) {
   // background — the first `ocx start` after an update usually races the Codex app's DB lock.
   // Loopback-only (legacy mode still forward-tags) and respects syncResumeHistory opt-out.
   let historyGuardian: ReturnType<typeof startHistoryMigrationGuardian> | undefined;
+  let gravityBridgeTargetGuardian: ReturnType<typeof startGravityBridgeTargetGuardian> | undefined;
 
   let cleaned = false;
   let cleanupSucceeded = true;
@@ -327,6 +335,7 @@ async function handleStart(options: { block?: boolean } = {}) {
     cleaned = true;
     try { guardian.stop(); } catch { /* best-effort */ }
     try { historyGuardian?.stop(); } catch { /* best-effort */ }
+    try { gravityBridgeTargetGuardian?.stop(); } catch { /* best-effort */ }
     // Dashboard drain-and-restart (#563) must not tear down injection: the replacement
     // process expects Codex/Grok/env fences to still be in place.
     const recycling = isRecyclingForExit();
@@ -336,7 +345,16 @@ async function handleStart(options: { block?: boolean } = {}) {
     removePid(process.pid);
     removeRuntimePort(process.pid);
     const preserveRouting = process.env.OCX_SERVICE === "1";
-    if (!recycling && !preserveRouting && !currentExternalCodexModelProvider()) {
+    if (!recycling && !preserveRouting && gravityBridgeMode) {
+      const homes = selectedGravityBridgeHomes(loadConfig());
+      for (const home of homes) {
+        const restored = runGravityBridgeTargetWorker("restore", home, port);
+        if (!restored.ok) {
+          cleanupSucceeded = false;
+          console.error(`⚠️  Native Codex restore failed for ${home}: ${restored.error ?? restored.code ?? "unknown error"}`);
+        }
+      }
+    } else if (!recycling && !preserveRouting && !currentExternalCodexModelProvider()) {
       try {
         const restored = restoreNativeCodex();
         if (!restored.success) {
@@ -425,6 +443,10 @@ async function handleStart(options: { block?: boolean } = {}) {
   }
   if (!gravityBridgeMode && !currentExternalCodexModelProvider() && !shouldInjectApiAuthHeader(config) && config.syncResumeHistory !== false) {
     historyGuardian = startHistoryMigrationGuardian();
+  }
+  if (gravityBridgeMode) {
+    gravityBridgeTargetGuardian = startGravityBridgeTargetGuardian(port);
+    void gravityBridgeTargetGuardian.runNow();
   }
   // Build Desktop 3P alias registry so inbound claude-opus-4-8-{code} aliases (and legacy claude-opus-4-{code}) decode correctly.
   if (!gravityBridgeMode) try {
@@ -518,7 +540,7 @@ async function handleEnsure(options: { existingIsSuccess?: boolean } = {}): Prom
       return true;
     }
 
-  const pinPort = config.port ?? 10100;
+  const pinPort = config.port ?? runtimeDefaultPort();
   const child = spawn(process.execPath, startArgv(pinPort > 0 ? pinPort : undefined), {
     detached: true,
     stdio: "ignore",
@@ -882,8 +904,23 @@ async function handleStatus() {
       googleLoggedIn = false;
     }
     const productConfig = loadConfig();
-    const routeConfigured = gravityBridgeConfigurationMatches(productConfig);
     const proxyRunning = Boolean(status.json.proxy.pid || status.json.proxy.health.ok);
+    const livePort = (() => {
+      try { return Number(new URL(status.json.proxy.health.url).port) || productConfig.port; }
+      catch { return productConfig.port; }
+    })();
+    const autoDiscoverCodexHomes = productConfig.gravityBridge?.autoDiscoverCodexHomes !== false;
+    const excludedCodexHomes = new Set(productConfig.gravityBridge?.excludedCodexHomes ?? []);
+    const targets = discoverGravityBridgeCodexHomes({
+      configuredHomes: productConfig.gravityBridge?.codexHomes,
+    }).map(target => ({
+      ...target,
+      selected: (autoDiscoverCodexHomes && !excludedCodexHomes.has(target.home)) || target.selected,
+      inspection: inspectGravityBridgeCodexTarget(target.home, livePort),
+    }));
+    const routeConfigured = gravityBridgeConfigurationMatches(productConfig)
+      && targets.some(target => target.selected)
+      && targets.filter(target => target.selected).every(target => target.inspection.configured);
     const productStatus = {
       product: "gravitybridge",
       proxy: {
@@ -901,6 +938,7 @@ async function handleStatus() {
       codex: {
         mainAccountPreserved: true,
         mainModelPreserved: true,
+        targets,
       },
     };
     if (wantsJson) {
@@ -917,6 +955,15 @@ async function handleStatus() {
     console.log(routeConfigured
       ? "   Route: configured and previously verified"
       : "   Route: not configured; finish sign-in and live verification in the dashboard");
+    for (const target of targets) {
+      const state = target.inspection.conflict
+        ? `conflict with ${target.inspection.conflict.owner}`
+        : target.inspection.configured ? "ready" : target.inspection.reasons.join(", ");
+      console.log(`   ${target.label}: ${state} (${target.home})`);
+    }
+    if (productConfig.gravityBridge?.configuredAt) {
+      console.log("   Next step: create a new Codex task; pre-install tasks cannot be converted from encrypted V2 metadata.");
+    }
     if (!proxyRunning) console.log("   Start with: gravitybridge");
     return;
   }
