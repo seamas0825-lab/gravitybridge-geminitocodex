@@ -13,9 +13,16 @@ import { randomUUID } from "node:crypto";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { GenerationContext } from "./state-store-sweeper";
 import { renameAtomicFile } from "./windows-atomic-replace";
+import { isGravityBridgeMode, runtimeCodexArtifactName } from "../gravitybridge/runtime";
 
-export const CONFIG_OWNER_FILE = ".opencodex-owner.json";
-export const CONFIG_UNINSTALL_MANIFEST = ".opencodex-uninstall.json";
+export const CONFIG_OWNER_FILE = runtimeCodexArtifactName(
+  ".opencodex-owner.json",
+  ".gravitybridge-owner.json",
+);
+export const CONFIG_UNINSTALL_MANIFEST = runtimeCodexArtifactName(
+  ".opencodex-uninstall.json",
+  ".gravitybridge-uninstall.json",
+);
 
 export type ConfigRemovalResult = {
   status: "absent" | "removed" | "partial" | "refused";
@@ -35,7 +42,7 @@ type ConfigUninstallManifest = ConfigOwner & {
 
 const METADATA_MAX_BYTES = 64 * 1024;
 const MANIFEST_MAX_PATHS = 1024;
-const INITIAL_OWNED_PATHS = [
+const OPENCODEX_INITIAL_OWNED_PATHS = [
   ".star-prompted",
   "artifacts",
   "auth.json",
@@ -78,6 +85,15 @@ const INITIAL_OWNED_PATHS = [
   "version.json",
   "winsw",
 ] as const;
+const INITIAL_OWNED_PATHS = isGravityBridgeMode()
+  ? [
+      ...OPENCODEX_INITIAL_OWNED_PATHS.filter(path =>
+        path !== "ocx.pid"
+        && !path.startsWith("opencodex-service")
+        && !path.startsWith("opencodex-tray")),
+      "gravitybridge.pid",
+    ]
+  : OPENCODEX_INITIAL_OWNED_PATHS;
 const ownershipCache = new Map<string, {
   owner: ConfigOwner;
   manifest: ConfigUninstallManifest;
