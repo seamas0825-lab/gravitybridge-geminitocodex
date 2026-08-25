@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { getLoginStatus, startLoginFlow } from "../../oauth";
 import { removeCredential } from "../../oauth/store";
 import {
@@ -8,7 +7,13 @@ import {
   saveConfigPreservingClaudeCode,
 } from "../../config";
 import { reconcileLiveStateStores } from "../../lib/state-store-registrations";
-import { activeCodexConfigPath, isMultiAgentV2Enabled } from "../../codex/features";
+import { isMultiAgentV2Enabled } from "../../codex/features";
+import { getCodexHome } from "../../codex/paths";
+import {
+  collectCodexAppServerCatalogState,
+  listCodexAppServerProcesses,
+  restartCodexAppServers,
+} from "../../codex/app-server-processes";
 import { jsonResponse } from "../auth-cors";
 import { handleResponses } from "../responses";
 import type { RequestLogContext } from "../request-log";
@@ -29,10 +34,26 @@ import {
   gravityBridgeTargetAvailable,
   restoreGravityBridgeDefaults,
 } from "../../gravitybridge/core";
+import {
+  GRAVITYBRIDGE_RULES_VERSION,
+  discoverGravityBridgeCodexHomes,
+  inspectGravityBridgeCodexTarget,
+  runGravityBridgeTargetWorker,
+  selectedGravityBridgeHomes,
+} from "../../gravitybridge/codex-targets";
 
 function persist(ctx: ManagementContext): void {
   const save = ctx.deps.saveConfigPreservingClaudeCode ?? saveConfigPreservingClaudeCode;
   save(ctx.config);
+}
+
+function restoreConfigSnapshot(
+  target: ManagementContext["config"],
+  snapshot: ManagementContext["config"],
+): void {
+  const mutable = target as unknown as Record<string, unknown>;
+  for (const key of Object.keys(mutable)) delete mutable[key];
+  Object.assign(mutable, snapshot);
 }
 
 async function runSelfTest(config: ManagementContext["config"]): Promise<{
@@ -141,23 +162,42 @@ export async function handleGravityBridgeRoutes(ctx: ManagementContext): Promise
   const { req, url, config } = ctx;
   if (url.pathname === "/api/gravitybridge/status" && req.method === "GET") {
     const login = getLoginStatus(GRAVITYBRIDGE_PROVIDER);
+    const port = Number(url.port) || config.port;
+    const autoDiscoverCodexHomes = config.gravityBridge?.autoDiscoverCodexHomes !== false;
+    const excludedCodexHomes = new Set(config.gravityBridge?.excludedCodexHomes ?? []);
+    const targets = discoverGravityBridgeCodexHomes({
+      configuredHomes: config.gravityBridge?.codexHomes,
+    }).map(target => ({
+      ...target,
+      selected: (autoDiscoverCodexHomes && !excludedCodexHomes.has(target.home)) || target.selected,
+      inspection: inspectGravityBridgeCodexTarget(target.home, port),
+    }));
+    const selectedTargets = targets.filter(target => target.selected);
+    const appServerState = collectCodexAppServerCatalogState();
+    const targetsConfigured = selectedTargets.length > 0
+      && selectedTargets.every(target => target.inspection.configured);
     return jsonResponse({
       platform: process.platform,
       platformSupported: process.platform === "darwin",
-      codexConfigPresent: existsSync(activeCodexConfigPath()),
+      codexConfigPresent: targets.some(target => target.configPresent),
+      activeCodexHome: getCodexHome(),
+      targets,
       loggedIn: login.loggedIn,
       loginDone: login.done,
       loginError: login.error ?? null,
       account: login.email ?? null,
       providerConfigured: config.providers[GRAVITYBRIDGE_PROVIDER] !== undefined,
-      configured: gravityBridgeConfigurationMatches(config),
+      configured: gravityBridgeConfigurationMatches(config) && targetsConfigured,
       configuredAt: config.gravityBridge?.configuredAt ?? null,
       riskAccepted: Boolean(config.gravityBridge?.acceptedRiskAt),
       model: GRAVITYBRIDGE_MODEL_SLUG,
       effort: GRAVITYBRIDGE_EFFORT,
       multiAgentMode: config.multiAgentMode ?? "default",
       nativeV2Enabled: isMultiAgentV2Enabled(),
-      restartRequired: gravityBridgeConfigurationMatches(config),
+      restartRequired: appServerState.state === "stale",
+      appServerState: appServerState.state,
+      newTaskRequired: gravityBridgeConfigurationMatches(config),
+      autoDiscoverCodexHomes,
     });
   }
 
@@ -214,8 +254,46 @@ export async function handleGravityBridgeRoutes(ctx: ManagementContext): Promise
     const selfTest = await runSelfTest(config);
     if (!selfTest.ok) return jsonResponse({ ...selfTest, configured: false }, selfTest.status);
 
+    const body = await readManagementJsonBodyOr(req, {}) as {
+      codexHomes?: unknown;
+      restartCodex?: unknown;
+      autoDiscoverCodexHomes?: unknown;
+    };
+    const requestedHomes = Array.isArray(body.codexHomes)
+      ? body.codexHomes.filter((value): value is string => typeof value === "string")
+      : undefined;
+    const codexHomes = selectedGravityBridgeHomes(config, requestedHomes);
+    const discoveredHomes = discoverGravityBridgeCodexHomes({
+      configuredHomes: config.gravityBridge?.codexHomes,
+    }).map(target => target.home);
+    if (codexHomes.length === 0) {
+      return jsonResponse({
+        error: "No readable Codex installation was selected. Start Codex once, then refresh this page.",
+        code: "NO_CODEX_TARGETS",
+        configured: false,
+      }, 409);
+    }
+    const conflicts = codexHomes
+      .map(home => inspectGravityBridgeCodexTarget(home, Number(url.port) || config.port))
+      .filter(inspection => inspection.conflict);
+    if (conflicts.length > 0) {
+      return jsonResponse({
+        error: "OpenCodex or another local proxy already manages one selected Codex client. Restore/stop that integration, then retry. GravityBridge did not overwrite it.",
+        code: "ROUTING_CONFLICT",
+        configured: false,
+        conflicts,
+      }, 409);
+    }
+
+    const configBeforeApply = structuredClone(config);
     try {
       applyGravityBridgeDefaults(config);
+      const state = ensureGravityBridgeBaseline(config);
+      state.codexHomes = codexHomes;
+      state.autoRepair = true;
+      state.autoDiscoverCodexHomes = body.autoDiscoverCodexHomes !== false;
+      state.excludedCodexHomes = discoveredHomes.filter(home => !codexHomes.includes(home));
+      state.rulesVersion = GRAVITYBRIDGE_RULES_VERSION;
       persist(ctx);
       // First launch keeps coordination artifacts inside ~/.gravitybridge. Once
       // the user-authorized configuration is proven and saved, native Codex
@@ -227,22 +305,36 @@ export async function handleGravityBridgeRoutes(ctx: ManagementContext): Promise
         code: "CONFIG_WRITE_FAILED",
       }, 502);
     }
-    const catalogRefresh = await ctx.convergeCodexCatalog();
-    if (catalogRefresh.status === "failed") {
+    const targetResults = codexHomes.map(home => runGravityBridgeTargetWorker("sync", home, Number(url.port) || config.port));
+    const failedTargets = targetResults.filter(result => !result.ok);
+    if (failedTargets.length > 0) {
+      const routingConflict = failedTargets.find(result => result.code === "ROUTING_CONFLICT");
+      for (const home of codexHomes) {
+        runGravityBridgeTargetWorker("restore", home, Number(url.port) || config.port);
+      }
+      restoreConfigSnapshot(config, configBeforeApply);
+      persist(ctx);
       return jsonResponse({
-        error: "The model route was verified, but Codex catalog convergence failed.",
-        code: "CONFIG_WRITE_FAILED",
-        configured: true,
+        error: routingConflict
+          ? "OpenCodex or another local proxy already manages one selected Codex client. Restore/stop that integration, then retry. GravityBridge did not overwrite it."
+          : "Gemini was verified, but one or more Codex clients could not be configured.",
+        code: routingConflict ? "ROUTING_CONFLICT" : "CONFIG_WRITE_FAILED",
+        configured: false,
         selfTest,
-        catalogRefresh,
-      }, 502);
+        targetResults,
+      }, routingConflict ? 409 : 502);
     }
+    const restart = body.restartCodex === true
+      ? restartCodexAppServers(listCodexAppServerProcesses())
+      : null;
     return jsonResponse({
       ok: true,
       configured: gravityBridgeConfigurationMatches(config),
       selfTest,
-      catalogRefresh,
-      restartRequired: true,
+      targetResults,
+      restart,
+      restartRequired: body.restartCodex !== true && collectCodexAppServerCatalogState().state === "stale",
+      newTaskRequired: true,
     });
   }
 
@@ -253,11 +345,18 @@ export async function handleGravityBridgeRoutes(ctx: ManagementContext): Promise
 
   if (url.pathname === "/api/gravitybridge/restore" && req.method === "POST") {
     const body = await readManagementJsonBodyOr(req, {}) as { deleteCredential?: unknown };
+    const codexHomes = selectedGravityBridgeHomes(config);
     const restored = restoreGravityBridgeDefaults(config);
     if (restored.changed) persist(ctx);
     if (body.deleteCredential === true) await removeCredential(GRAVITYBRIDGE_PROVIDER);
-    const { restoreNativeCodexAsync } = await import("../../codex/inject");
-    const nativeRestore = await restoreNativeCodexAsync();
+    const targetResults = (codexHomes.length > 0 ? codexHomes : [getCodexHome()])
+      .map(home => runGravityBridgeTargetWorker("restore", home, Number(url.port) || config.port));
+    const nativeRestore = {
+      success: targetResults.every(result => result.ok),
+      message: targetResults.every(result => result.ok)
+        ? "All selected Codex clients were restored."
+        : "One or more Codex clients could not be restored.",
+    };
     if (process.env.GRAVITYBRIDGE_MODE === "1") {
       process.env.GRAVITYBRIDGE_NATIVE_CLAIM_HOME = getConfigDir();
     }
@@ -266,6 +365,7 @@ export async function handleGravityBridgeRoutes(ctx: ManagementContext): Promise
       changed: restored.changed,
       credentialDeleted: body.deleteCredential === true,
       nativeRestore,
+      targetResults,
     }, nativeRestore.success ? 200 : 502);
   }
 
