@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,30 @@ const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 const cliPath = join(here, "..", "src", "cli", "index.ts");
 const launchProofPrefix = "--ocx-internal-launch-proof=";
+
+function expandHomePath(value) {
+  if (value === "~") return homedir();
+  if (value.startsWith("~/")) return join(homedir(), value.slice(2));
+  return value;
+}
+
+function cockpitCodexHomes() {
+  const root = join(homedir(), ".antigravity_cockpit", "instances", "codex");
+  try {
+    return readdirSync(root)
+      .map(name => join(root, name))
+      .filter(path => statSync(path).isDirectory() && existsSync(join(path, "config.toml")));
+  } catch {
+    return [];
+  }
+}
+
+function resolveCodexHome() {
+  const explicit = process.env.GRAVITYBRIDGE_CODEX_HOME?.trim() || process.env.CODEX_HOME?.trim();
+  if (explicit) return expandHomePath(explicit);
+  const cockpitHomes = cockpitCodexHomes();
+  return cockpitHomes.length === 1 ? cockpitHomes[0] : undefined;
+}
 
 function resolveBun() {
   const configuredBinary = process.env.GRAVITYBRIDGE_BUN_PATH?.trim();
@@ -58,12 +82,11 @@ const forwardedArgs = process.argv.slice(2);
 const args = forwardedArgs.length === 0 ? ["start"] : forwardedArgs;
 const proof = randomBytes(32).toString("base64url");
 const launchContext = JSON.stringify({ version: 1, proof, anthropicEnvSlots: [] });
-const configuredHome = process.env.OPENCODEX_HOME?.trim() || join(homedir(), ".gravitybridge");
-const expandedHome = configuredHome === "~"
-  ? homedir()
-  : configuredHome.startsWith("~/")
-    ? join(homedir(), configuredHome.slice(2))
-    : configuredHome;
+// GravityBridge deliberately ignores ambient OPENCODEX_HOME. Both products may
+// be installed on the same Mac, but they never share state or process records.
+const configuredHome = process.env.GRAVITYBRIDGE_HOME?.trim() || join(homedir(), ".gravitybridge");
+const expandedHome = expandHomePath(configuredHome);
+const codexHome = resolveCodexHome();
 let bridgeConfigured = false;
 try {
   bridgeConfigured = Boolean(JSON.parse(readFileSync(join(expandedHome, "config.json"), "utf8"))?.gravityBridge?.configuredAt);
@@ -71,8 +94,10 @@ try {
 const env = {
   ...process.env,
   OPENCODEX_HOME: configuredHome,
+  GRAVITYBRIDGE_HOME: configuredHome,
   GRAVITYBRIDGE_MODE: "1",
   OCX_NODE_LAUNCH_CONTEXT: launchContext,
+  ...(codexHome ? { CODEX_HOME: codexHome } : {}),
   ...(!bridgeConfigured ? { GRAVITYBRIDGE_NATIVE_CLAIM_HOME: expandedHome } : {}),
 };
 
