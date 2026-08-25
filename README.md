@@ -1,5 +1,7 @@
 # GravityBridge
 
+[![CI](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml/badge.svg)](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml)
+
 GravityBridge adds one verified Google Antigravity model to Codex as a subagent:
 
 - model: `google-antigravity/gemini-3.7-flash`
