@@ -1,6 +1,6 @@
 # GravityBridge
 
-[![CI](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![CI](https://github.com/seamas0825-lab/gravitybridge-geminitocodex/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/seamas0825-lab/gravitybridge-geminitocodex/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 
 GravityBridge is a focused, local macOS product that adds one verified Google Antigravity model to Codex as a subagent:
 
@@ -10,14 +10,14 @@ GravityBridge is a focused, local macOS product that adds one verified Google An
 - native Codex and Cockpit clients: discovered and configured independently
 - setup: a beginner-friendly local dashboard with a real route test
 
-GravityBridge is a separate product from OpenCodex. It uses its own command, state root, port, process identity, health identity, Codex artifacts, recovery journal, and managed instruction block. OpenCodex-derived routing code remains an attributed internal implementation dependency; it is not a shared runtime installation.
+GravityBridge runs as a self-contained local service with its own command, state directory, port, process identity, health checks, Codex artifacts, recovery journal, and managed instruction block.
 
 ## Install
 
 Requirements: macOS, Node.js 18 or newer, and at least one Codex or Cockpit client that has been opened once.
 
 ```bash
-npm install -g https://github.com/seamas0825-lab/gravitybridge/archive/refs/heads/main.tar.gz
+npm install -g https://github.com/seamas0825-lab/gravitybridge-geminitocodex/archive/refs/heads/main.tar.gz
 gravitybridge
 ```
 
@@ -55,20 +55,22 @@ All detected clients are shown before setup. Unchecked homes remain excluded. Wi
 
 For a custom launcher, pass one home with `GRAVITYBRIDGE_CODEX_HOME` or multiple homes with `GRAVITYBRIDGE_CODEX_HOMES` (comma, newline, or platform path-list separated).
 
-## Product isolation
+## Local architecture
 
-| Resource | GravityBridge | OpenCodex |
-|---|---|---|
-| Command | `gravitybridge` | `ocx` / `opencodex` |
-| State | `~/.gravitybridge` | `~/.opencodex` |
-| Default port | `10101` | `10100` |
-| Health identity | `gravitybridge` | `opencodex` |
-| PID file | `gravitybridge.pid` | `ocx.pid` |
-| Codex profile | `gravitybridge.config.toml` | `opencodex.config.toml` |
-| Codex catalog | `gravitybridge-catalog.json` | `opencodex-catalog.json` |
-| Restore journal | `gravitybridge-journal.json` | `opencodex-journal.json` |
+GravityBridge owns a small, explicit set of local resources:
 
-The launcher ignores an ambient `OPENCODEX_HOME`; only `GRAVITYBRIDGE_HOME` can override GravityBridge's state directory. A live OpenCodex health response is never accepted as a running GravityBridge process. If OpenCodex or a custom proxy already owns a selected Codex route, setup stops with `ROUTING_CONFLICT` before modifying it.
+| Resource | Default |
+|---|---|
+| Command | `gravitybridge` |
+| State directory | `~/.gravitybridge` |
+| Dashboard and proxy | `http://127.0.0.1:10101` |
+| Health identity | `gravitybridge` |
+| PID file | `gravitybridge.pid` |
+| Codex profile | `gravitybridge.config.toml` |
+| Codex catalog | `gravitybridge-catalog.json` |
+| Restore journal | `gravitybridge-journal.json` |
+
+Set `GRAVITYBRIDGE_HOME` to override the state directory. GravityBridge verifies the service identity before reusing a live process. If another integration already owns a selected Codex route, setup stops with `ROUTING_CONFLICT` before modifying that client.
 
 See [Product isolation and multi-client design](docs/gravitybridge-isolation.md) for the complete ownership and recovery model.
 
@@ -94,7 +96,7 @@ gravitybridge restore --delete-google-login
 
 ## Troubleshooting
 
-- `ROUTING_CONFLICT`: OpenCodex or another proxy owns that client's route. Restore/stop the other integration, refresh the dashboard, and retry.
+- `ROUTING_CONFLICT`: another proxy or integration owns that client's route. Restore or stop the conflicting integration, refresh the dashboard, and retry.
 - `MODEL_NOT_AVAILABLE`: the signed-in Google account does not advertise `gemini-3.7-flash`.
 - `AUTH_REQUIRED`: sign in again from the dashboard.
 - `RATE_LIMITED`: wait for quota recovery, then rerun the self-test.
@@ -112,7 +114,7 @@ Run `gravitybridge status` for paths and exact target states. The dashboard's **
 - OAuth credentials stay in GravityBridge's protected local credential store and are never copied into Codex configuration.
 - The listener binds to loopback. Do not expose it on a network interface.
 - GravityBridge has no telemetry and does not replace or log out the main Codex account.
-- Generic OpenCodex provider/client management APIs are disabled in product mode.
+- The management API exposes only the operations required by GravityBridge's guided setup and restore flow.
 
 Google may change Antigravity access, model names, OAuth behavior, quotas, or account eligibility. Using a third-party local proxy may be restricted by provider terms. GravityBridge does not bypass access controls and is not affiliated with or endorsed by Google or OpenAI.
 
@@ -126,5 +128,3 @@ npx --yes bun@1.4.0 run test
 npx --yes bun@1.4.0 run privacy:scan
 cd gui && npx --yes bun@1.4.0 run lint && npx --yes bun@1.4.0 test tests && npx --yes bun@1.4.0 run build:gravitybridge
 ```
-
-GravityBridge is derived from [OpenCodex](https://github.com/lidge-jun/opencodex) under the MIT License. See [NOTICE](NOTICE) for attribution.
