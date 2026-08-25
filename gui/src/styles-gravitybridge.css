@@ -50,6 +50,15 @@
 .gravity-google-g { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: conic-gradient(from -35deg, #4285f4 0 25%, #34a853 0 49%, #fbbc05 0 72%, #ea4335 0); color: white; font-size: 10px; }
 .gravity-primary { background: linear-gradient(135deg, var(--gravity-blue), #5c55ec); color: white; box-shadow: 0 10px 24px rgba(53,88,228,.22); }
 .gravity-secondary { margin-top: 9px; background: #edf1fb; color: #41516f; }
+.gravity-targets { display: grid; max-height: 190px; margin: 10px 0 13px; gap: 7px; overflow: auto; }
+.gravity-target { display: grid; padding: 9px 10px; align-items: center; grid-template-columns: auto 1fr auto; gap: 9px; border: 1px solid var(--gravity-border); border-radius: 11px; background: #f8faff; color: #43506b; }
+.gravity-target.conflict { border-color: rgba(213,71,95,.28); background: #fff7f8; }
+.gravity-target input { width: 15px; height: 15px; accent-color: var(--gravity-blue); }
+.gravity-target span { min-width: 0; }
+.gravity-target strong { display: block; font-size: 11.5px; }
+.gravity-target code { display: block; overflow: hidden; color: var(--gravity-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.gravity-target small { color: var(--gravity-muted); font-size: 9.5px; }
+.gravity-restart-choice { margin: 4px 0 13px; }
 .gravity-result { position: relative; z-index: 1; display: flex; max-width: 990px; margin: 18px auto 0; padding: 19px 23px; gap: 14px; border: 1px solid; border-radius: 17px; background: white; }
 .gravity-result.success { border-color: rgba(37,165,100,.25); background: #f4fcf7; }
 .gravity-result.failure { border-color: rgba(213,71,95,.24); background: #fff7f8; }
