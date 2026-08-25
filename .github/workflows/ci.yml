@@ -38,7 +38,7 @@ jobs:
         run: bun run typecheck
 
       - name: GravityBridge tests
-        run: bun test tests/gravitybridge-core.test.ts tests/gravitybridge-routes.test.ts
+        run: bun test tests/gravitybridge-core.test.ts tests/gravitybridge-routes.test.ts tests/gravitybridge-targets.test.ts
 
   product-suite:
     name: Product suite and web app
