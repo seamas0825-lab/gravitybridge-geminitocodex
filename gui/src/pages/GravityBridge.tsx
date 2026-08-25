@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { jsonRequest } from "../gravitybridge-request";
 import { GRAVITY_LOCALES, useGravityI18n, useGravityT, type GravityLocale } from "../i18n/gravitybridge-provider";
 import "../styles-gravitybridge.css";
@@ -19,6 +19,22 @@ type BridgeStatus = {
   multiAgentMode: string;
   nativeV2Enabled: boolean;
   restartRequired: boolean;
+  newTaskRequired: boolean;
+  activeCodexHome: string;
+  appServerState: string;
+  autoDiscoverCodexHomes: boolean;
+  targets: Array<{
+    home: string;
+    label: string;
+    source: string;
+    selected: boolean;
+    configPresent: boolean;
+    inspection: {
+      configured: boolean;
+      conflict: null | { owner: string; value: string };
+      reasons: string[];
+    };
+  }>;
 };
 
 type OperationResult = {
@@ -66,12 +82,22 @@ export default function GravityBridge({ apiBase }: { apiBase: string }) {
   const [result, setResult] = useState<OperationResult | null>(null);
   const [error, setError] = useState<{ message: string; code?: string } | null>(null);
   const [deleteCredential, setDeleteCredential] = useState(false);
+  const [selectedHomes, setSelectedHomes] = useState<string[]>([]);
+  const [restartCodex, setRestartCodex] = useState(true);
+  const [autoDiscoverCodexHomes, setAutoDiscoverCodexHomes] = useState(true);
   const pollRef = useRef<number | null>(null);
+  const selectedHomeSet = useMemo(() => new Set(selectedHomes), [selectedHomes]);
 
   const loadStatus = useCallback(async () => {
     const next = await jsonRequest<BridgeStatus>(`${apiBase}/api/gravitybridge/status`);
     setStatus(next);
+    setSelectedHomes(previous => {
+      const available = new Set(next.targets.map(target => target.home));
+      const retained = previous.filter(home => available.has(home));
+      return retained.length > 0 ? retained : next.targets.filter(target => target.selected).map(target => target.home);
+    });
     if (next.riskAccepted) setAcceptedRisk(true);
+    setAutoDiscoverCodexHomes(next.autoDiscoverCodexHomes !== false);
     return next;
   }, [apiBase]);
 
@@ -125,7 +151,11 @@ export default function GravityBridge({ apiBase }: { apiBase: string }) {
     setBusy(kind); setError(null); setResult(null);
     try {
       const endpoint = kind === "apply" ? "apply" : "self-test";
-      const next = await jsonRequest<OperationResult>(`${apiBase}/api/gravitybridge/${endpoint}`, { method: "POST" });
+      const next = await jsonRequest<OperationResult>(`${apiBase}/api/gravitybridge/${endpoint}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: kind === "apply" ? JSON.stringify({ codexHomes: selectedHomes, restartCodex, autoDiscoverCodexHomes }) : undefined,
+      });
       setResult(next);
       await loadStatus();
     } catch (err) {
@@ -187,6 +217,7 @@ export default function GravityBridge({ apiBase }: { apiBase: string }) {
           <StatusRow label={t("gravity.status.codex")} ok={status?.codexConfigPresent === true} waiting={status === null} />
           <StatusRow label={t("gravity.status.google")} ok={status?.loggedIn === true} waiting={busy === "login"} detail={status?.account ?? undefined} />
           <StatusRow label={t("gravity.status.route")} ok={status?.configured === true} waiting={busy === "apply"} />
+          <StatusRow label={t("gravity.status.restart")} ok={status?.restartRequired === false} waiting={status === null} />
           <div className="gravity-specs">
             <div><span>{t("gravity.model")}</span><code>google-antigravity/gemini-3.7-flash</code></div>
             <div><span>{t("gravity.effort")}</span><strong>{t("gravity.effortValue")}</strong></div>
@@ -210,7 +241,31 @@ export default function GravityBridge({ apiBase }: { apiBase: string }) {
 
           <article className="gravity-card">
             <span className="gravity-step">{t("gravity.step.configure")}</span>
-            <button type="button" className="gravity-button gravity-primary" disabled={!status?.loggedIn || busy !== null} onClick={() => { void runOperation("apply"); }}>
+            <p className="gravity-risk-detail">{t("gravity.targets.detail")}</p>
+            <div className="gravity-targets">
+              {status?.targets.map(target => (
+                <label className={`gravity-target ${target.inspection.conflict ? "conflict" : ""}`} key={target.home}>
+                  <input
+                    type="checkbox"
+                    checked={selectedHomeSet.has(target.home)}
+                    onChange={event => setSelectedHomes(current => event.target.checked
+                      ? [...new Set([...current, target.home])]
+                      : current.filter(home => home !== target.home))}
+                  />
+                  <span><strong>{target.label}</strong><code title={target.home}>{target.home}</code></span>
+                  <small>{target.inspection.conflict ? t("gravity.targets.conflict") : target.inspection.configured ? t("gravity.targets.ready") : t("gravity.targets.pending")}</small>
+                </label>
+              ))}
+            </div>
+            <label className="gravity-check compact gravity-restart-choice">
+              <input type="checkbox" checked={autoDiscoverCodexHomes} onChange={event => setAutoDiscoverCodexHomes(event.target.checked)} />
+              <span>{t("gravity.autoDiscoverCodex")}</span>
+            </label>
+            <label className="gravity-check compact gravity-restart-choice">
+              <input type="checkbox" checked={restartCodex} onChange={event => setRestartCodex(event.target.checked)} />
+              <span>{t("gravity.restartCodex")}</span>
+            </label>
+            <button type="button" className="gravity-button gravity-primary" disabled={!status?.loggedIn || busy !== null || selectedHomes.length === 0} onClick={() => { void runOperation("apply"); }}>
               {busy === "apply" ? t("gravity.configuring") : t("gravity.configure")}
             </button>
             <button type="button" className="gravity-button gravity-secondary" disabled={!status?.loggedIn || busy !== null} onClick={() => { void runOperation("test"); }}>
@@ -226,6 +281,7 @@ export default function GravityBridge({ apiBase }: { apiBase: string }) {
           <div>
             <h2>{succeeded && !error ? t("gravity.success") : t("gravity.failure")}</h2>
             {succeeded && !error && <p>{t("gravity.successDetail", { model: testResult?.model ?? status?.model ?? "", effort: testResult?.effort ?? status?.effort ?? "" })}</p>}
+            {succeeded && !error && <p><strong>{t("gravity.newTaskRequired")}</strong></p>}
             {error && <p>{error.message}</p>}
             {(error?.code || testResult?.code) && <p className="gravity-diagnostic"><span>{t("gravity.diagnostics")}</span><code>{error?.code ?? testResult?.code}</code></p>}
             {testResult?.output && <details><summary>{t("gravity.output")}</summary><pre>{testResult.output}</pre></details>}
