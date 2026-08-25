@@ -16,7 +16,7 @@ It is intentionally narrow. There is no generic API-key importer, no desktop app
 Requirements: macOS, Node.js 18 or newer, and Codex already signed in to the account you want to keep.
 
 ```bash
-npm install -g github:seamas0825-lab/gravitybridge
+npm install -g https://github.com/seamas0825-lab/gravitybridge/archive/refs/heads/main.tar.gz
 gravitybridge
 ```
 
