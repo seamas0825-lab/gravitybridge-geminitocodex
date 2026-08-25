@@ -9,9 +9,10 @@ import {
 } from "../lib/windows-elevation";
 import { atomicWriteFile } from "./atomic-write";
 import { getConfigDir, hardenConfigDir } from "./paths";
+import { isGravityBridgeMode } from "../gravitybridge/runtime";
 
 export function getPidPath(): string {
-  return join(getConfigDir(), "ocx.pid");
+  return join(getConfigDir(), isGravityBridgeMode() ? "gravitybridge.pid" : "ocx.pid");
 }
 
 export function getRuntimePortPath(): string {
@@ -118,7 +119,7 @@ export function isOcxStartCommandLine(commandLine: string): boolean {
     || normalized.includes("src/cli/index.ts")
     || normalized.includes("@bitkyc08/opencodex")
     || /@bitkyc08\/\.opencodex-/.test(normalized)
-    || /(?:^|[\s/"'])(?:ocx|opencodex)(?:\.cmd)?(?:$|[\s"'])/.test(normalized);
+    || /(?:^|[\s/"'])(?:ocx|opencodex|gravitybridge)(?:\.cmd)?(?:$|[\s"'])/.test(normalized);
   return hasOcxEntrypoint && /(?:^|[\s"'])start(?:$|[\s"'])/.test(normalized);
 }
 
