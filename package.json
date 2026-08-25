@@ -1,6 +1,6 @@
 {
   "name": "gravitybridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "One-click Google Antigravity subagents for Codex, with verified routing and reversible local configuration",
   "type": "module",
   "bin": {
@@ -24,7 +24,7 @@
     "dev:gui": "cd gui && bun run dev",
     "start": "bun run src/cli/index.ts start",
     "test": "bun run test:product",
-    "test:product": "bun scripts/test.ts tests/gravitybridge-core.test.ts tests/gravitybridge-routes.test.ts tests/gravitybridge-cli.test.ts tests/antigravity-baseurl-override.test.ts tests/antigravity-static-catalog.test.ts tests/google-antigravity-oauth.test.ts tests/google-antigravity-replay.test.ts tests/google-antigravity-wire.test.ts tests/subagent-defaults.test.ts tests/subagent-fallback-handle-responses.test.ts tests/subagent-model-fallback-api.test.ts tests/subagent-model-fallback.test.ts tests/subagent-roster-retention.test.ts tests/codex-inject.test.ts tests/codex-inject-integration.test.ts tests/oauth-callback-server.test.ts tests/oauth-login-open-browser.test.ts tests/server-management-auth.test.ts",
+    "test:product": "bun scripts/test.ts tests/gravitybridge-core.test.ts tests/gravitybridge-routes.test.ts tests/gravitybridge-cli.test.ts tests/gravitybridge-targets.test.ts tests/antigravity-baseurl-override.test.ts tests/antigravity-static-catalog.test.ts tests/google-antigravity-oauth.test.ts tests/google-antigravity-replay.test.ts tests/google-antigravity-wire.test.ts tests/subagent-defaults.test.ts tests/subagent-fallback-handle-responses.test.ts tests/subagent-model-fallback-api.test.ts tests/subagent-model-fallback.test.ts tests/subagent-roster-retention.test.ts tests/codex-inject.test.ts tests/codex-inject-integration.test.ts tests/oauth-callback-server.test.ts tests/oauth-login-open-browser.test.ts tests/server-management-auth.test.ts",
     "test:upstream": "bun scripts/test.ts",
     "typecheck": "bun x tsc --noEmit",
     "audit:high": "bun audit --audit-level=high && cd gui && bun audit --audit-level=high",
