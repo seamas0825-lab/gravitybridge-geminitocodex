@@ -2,6 +2,7 @@ import { readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { expandUserPath } from "../config";
 import { defaultCodexHome } from "./home";
+import { runtimeCodexArtifactName } from "../gravitybridge/runtime";
 
 function resolveCodexHome(): string {
   const raw = process.env.CODEX_HOME?.trim();
@@ -25,8 +26,14 @@ function resolveCodexHome(): string {
 
 export const CODEX_HOME = resolveCodexHome();
 export const CODEX_CONFIG_PATH = join(CODEX_HOME, "config.toml");
-export const CODEX_PROFILE_PATH = join(CODEX_HOME, "opencodex.config.toml");
-export const DEFAULT_CATALOG_PATH = join(CODEX_HOME, "opencodex-catalog.json");
+export const CODEX_PROFILE_PATH = join(
+  CODEX_HOME,
+  runtimeCodexArtifactName("opencodex.config.toml", "gravitybridge.config.toml"),
+);
+export const DEFAULT_CATALOG_PATH = join(
+  CODEX_HOME,
+  runtimeCodexArtifactName("opencodex-catalog.json", "gravitybridge-catalog.json"),
+);
 export const CODEX_MODELS_CACHE_PATH = join(CODEX_HOME, "models_cache.json");
 
 /** Runtime CODEX_HOME lookup (honors CODEX_HOME env changes after import). */

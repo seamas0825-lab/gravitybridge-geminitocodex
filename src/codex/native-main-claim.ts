@@ -11,8 +11,12 @@ import {
 import { nativeMainOwnerFilesystemSupported } from "./native-main-owner";
 import type { NativeProfileContext } from "./native-profile-store";
 import { NativeProfileError } from "./native-profile-types";
+import { runtimeCodexArtifactName } from "../gravitybridge/runtime";
 
-export const NATIVE_MAIN_CLAIM_DB = ".opencodex-native-main.claim.sqlite";
+export const NATIVE_MAIN_CLAIM_DB = runtimeCodexArtifactName(
+  ".opencodex-native-main.claim.sqlite",
+  ".gravitybridge-native-main.claim.sqlite",
+);
 
 export interface NativeMainClaimOptions {
   waitMs?: number;

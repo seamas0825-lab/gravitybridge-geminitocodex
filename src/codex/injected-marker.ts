@@ -8,8 +8,12 @@
  * two public predicates, so external callers see no change.
  */
 import { parseTomlString } from "./paths";
+import { isGravityBridgeMode } from "../gravitybridge/runtime";
 
-export const OCX_SECTION_MARKER = "# Auto-injected by opencodex";
+export const OCX_SECTION_MARKER = isGravityBridgeMode()
+  ? "# Auto-injected by GravityBridge"
+  : "# Auto-injected by opencodex";
+export const LEGACY_OCX_SECTION_MARKER = "# Auto-injected by opencodex";
 
 export function isRootOpenaiBaseUrlLine(line: string): boolean {
   return /^\s*openai_base_url\s*=/.test(line);

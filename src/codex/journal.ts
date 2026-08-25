@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { atomicWriteFile } from "../config";
 import { hasInjectedCodexRouting } from "./injected-marker";
 import { CODEX_HOME, CODEX_CONFIG_PATH, CODEX_PROFILE_PATH } from "./paths";
+import { runtimeCodexArtifactName } from "../gravitybridge/runtime";
 
 /**
  * Exported so that anything reasoning ABOUT the journal points at the journal.
@@ -14,7 +15,10 @@ import { CODEX_HOME, CODEX_CONFIG_PATH, CODEX_PROFILE_PATH } from "./paths";
  * agreed with the producer, and the pair stayed green. One exported constant
  * removes the opportunity.
  */
-export const JOURNAL_PATH = join(CODEX_HOME, "opencodex-journal.json");
+export const JOURNAL_PATH = join(
+  CODEX_HOME,
+  runtimeCodexArtifactName("opencodex-journal.json", "gravitybridge-journal.json"),
+);
 
 interface Journal {
   version: 1;
