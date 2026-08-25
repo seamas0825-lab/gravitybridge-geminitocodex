@@ -55,11 +55,14 @@ describe("GravityBridge management guardrails", () => {
     expect(ctx.config.gravityBridge).toBeUndefined();
   });
 
-  test("refuses configuration when no Antigravity login exists", async () => {
+  test("refuses configuration before every required platform and login precondition is met", async () => {
     const ctx = context("/api/gravitybridge/apply", {});
     const response = await handleGravityBridgeRoutes(ctx);
-    expect(response?.status).toBe(401);
-    expect(await response?.json()).toMatchObject({ code: "AUTH_REQUIRED" });
+    const expected = process.platform === "darwin"
+      ? { status: 401, code: "AUTH_REQUIRED" }
+      : { status: 409, code: "PLATFORM_UNSUPPORTED" };
+    expect(response?.status).toBe(expected.status);
+    expect(await response?.json()).toMatchObject({ code: expected.code });
     expect(ctx.config.providers["google-antigravity"]).toBeUndefined();
   });
 
