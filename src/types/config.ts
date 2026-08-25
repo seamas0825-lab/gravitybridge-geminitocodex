@@ -274,6 +274,16 @@ export interface OcxConfig {
     schema: 1;
     acceptedRiskAt?: string;
     configuredAt?: string;
+    /** Canonical Codex homes selected in the setup dashboard (native + Cockpit instances). */
+    codexHomes?: string[];
+    /** Keep repairing safe, marker-owned routing when a client rewrites config.toml. */
+    autoRepair?: boolean;
+    /** Automatically include compatible Codex/Cockpit homes discovered after initial setup. */
+    autoDiscoverCodexHomes?: boolean;
+    /** Discovered homes explicitly unchecked by the user; auto-discovery must keep respecting them. */
+    excludedCodexHomes?: string[];
+    /** Managed AGENTS.md routing-rule revision installed into every selected home. */
+    rulesVersion?: number;
     baseline: {
       providerPresent: boolean;
       providerSelectedModels: { present: boolean; value?: string[] };
