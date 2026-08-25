@@ -74,6 +74,7 @@ import { formatCodexProviderForLog } from "../codex/routing";
 import { CatalogGatherBusyError } from "../codex/catalog/provider-fetch";
 import { registerCodexWebSocket, tryReserveCodexWebSocket, unregisterCodexWebSocket, updateCodexWebSocketAuthContext } from "../codex/websocket-registry";
 import { resolveGuiFilePath, rootFallbackPayload, serveGuiFile, serveSessionBootstrap } from "./gui-static";
+import { runtimeDefaultPort, runtimeServiceId } from "../gravitybridge/runtime";
 export { resolveGuiFilePath, rootFallbackPayload } from "./gui-static";
 export { resolveAdapter } from "./adapter-resolve";
 import { formatErrorResponse, type ResponsesTerminalStatus } from "../bridge";
@@ -610,7 +611,7 @@ export function startServer(port?: number, deps: StartServerDeps = {}): Server<W
     config.storageCleanupPolicy = policy;
   };
 
-  const listenPort = port ?? config.port ?? 10100;
+  const listenPort = port ?? config.port ?? runtimeDefaultPort();
   setCorsOrigin(listenPort);
 
   // Canonicalize an explicit "localhost" bind to IPv4 so it matches the injected base_url (which
@@ -907,7 +908,7 @@ export function startServer(port?: number, deps: StartServerDeps = {}): Server<W
         const healthPort = server.port ?? listenPort;
         const response = jsonResponse({
           status: "ok",
-          service: "opencodex",
+          service: runtimeServiceId(),
           version: VERSION,
           uptime: process.uptime(),
           pid: process.pid,
@@ -941,7 +942,7 @@ export function startServer(port?: number, deps: StartServerDeps = {}): Server<W
         // keep polling instead of promoting a proxy that is draining.
         const status = isDraining() ? "pending" : readinessGate.getStatus();
         const body = {
-          service: "opencodex",
+          service: runtimeServiceId(),
           version: VERSION,
           uptime: process.uptime(),
           pid: process.pid,

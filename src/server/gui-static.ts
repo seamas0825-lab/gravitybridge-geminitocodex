@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { browserSecurityHeaders } from "./auth-cors";
 import type { GuiSessionBootstrap } from "./management-auth";
+import { isGravityBridgeMode, runtimeServiceId } from "../gravitybridge/runtime";
 
 /** opencodex version, read from the packaged package.json (same source as the server bootstrap). */
 const VERSION = (() => {
@@ -135,11 +136,13 @@ export function serveGuiFile(
 export function rootFallbackPayload() {
   return {
     status: "ok",
-    service: "opencodex",
+    service: runtimeServiceId(),
     version: VERSION,
     dashboard: {
       available: false,
-      reason: "GUI build not found. Run `bun run build:gui` from the opencodex repo, or use `ocx gui` from a packaged install.",
+      reason: isGravityBridgeMode()
+        ? "GravityBridge dashboard build not found. Reinstall GravityBridge."
+        : "GUI build not found. Run `bun run build:gui` from the opencodex repo, or use `ocx gui` from a packaged install.",
     },
     endpoints: {
       health: "/healthz",

@@ -12,6 +12,7 @@
 import { loadConfig } from "../config";
 import { readAlivePid, readRuntimePort, verifyPidIdentity } from "../config/process-state";
 import { directLocalHttpFetch } from "./direct-local-http";
+import { isGravityBridgeMode, runtimeDefaultPort, runtimeServiceId } from "../gravitybridge/runtime";
 
 export interface HealthzIdentity {
   service?: unknown;
@@ -94,6 +95,13 @@ export function isOpencodexHealthz(body: HealthzIdentity | null): boolean {
   return body.status === "ok" && typeof body.version === "string" && typeof body.uptime === "number";
 }
 
+/** Product-aware identity gate. GravityBridge never adopts a live OpenCodex listener. */
+export function isExpectedProxyHealthz(body: HealthzIdentity | null): boolean {
+  if (!body) return false;
+  if (isGravityBridgeMode()) return body.service === runtimeServiceId();
+  return isOpencodexHealthz(body);
+}
+
 /** Identity-checked /healthz probe; null when unreachable, non-OK, or not our proxy. */
 export async function proxyIdentityAt(
   port: number,
@@ -119,7 +127,7 @@ export async function proxyIdentityAt(
       });
       if (!res.ok) return null;
       const body = (await res.json().catch(() => null)) as HealthzIdentity | null;
-      if (!isOpencodexHealthz(body)) return null;
+      if (!isExpectedProxyHealthz(body)) return null;
       const pid = typeof body?.pid === "number" ? body.pid : null;
       if (opts.expectedPid !== undefined && pid !== null && pid !== opts.expectedPid) return null;
       return { pid };
@@ -202,7 +210,7 @@ export async function findLiveProxy(io: LivenessIo = {}): Promise<LiveProxy | nu
   }
 
   const config = configFn();
-  const port = config.port ?? 10100;
+  const port = config.port ?? runtimeDefaultPort();
   if (budgetExhausted()) return null;
   const identity = await proxyIdentityAt(port, { hostname: config.hostname }, probeIo);
   if (identity) {
@@ -226,7 +234,7 @@ export async function findLiveProxy(io: LivenessIo = {}): Promise<LiveProxy | nu
 //
 //  - HTTP 200 is required for status="ready"; HTTP 503 is required for pending
 //    or failed. Any other HTTP/body-status pairing is an invalid contract.
-//  - body.service must be exactly "opencodex".
+//  - body.service must match the active product identity.
 //  - body.version must be a non-empty string.
 //  - body.uptime must be a finite nonnegative number.
 //  - body.pid must be a positive integer; when `expectedPid` is supplied it must
@@ -279,7 +287,7 @@ export function validateReadyzBody(
 ): ReadinessProbeResult | null {
   if (!body || typeof body !== "object") return null;
   const b = body as ReadyzBody;
-  if (b.service !== "opencodex") return null;
+  if (b.service !== runtimeServiceId()) return null;
   if (typeof b.version !== "string" || b.version.length === 0) return null;
   if (typeof b.uptime !== "number" || !Number.isFinite(b.uptime) || b.uptime < 0) return null;
   if (typeof b.pid !== "number" || !Number.isInteger(b.pid) || b.pid <= 0) return null;
