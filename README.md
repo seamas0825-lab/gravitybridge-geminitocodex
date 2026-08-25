@@ -1,6 +1,6 @@
 # GravityBridge
 
-[![CI](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml/badge.svg)](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml)
+[![CI](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/seamas0825-lab/gravitybridge/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 
 GravityBridge adds one verified Google Antigravity model to Codex as a subagent:
 
