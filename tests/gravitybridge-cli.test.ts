@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -30,6 +30,20 @@ function runStatus(...args: string[]) {
 }
 
 describe("GravityBridge CLI product surface", () => {
+  test("bundles macOS Bun binaries without the lifecycle installer wrapper", () => {
+    const packageJson = JSON.parse(readFileSync(join(import.meta.dir, "..", "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+      optionalDependencies?: Record<string, string>;
+      engines?: Record<string, string>;
+    };
+    expect(packageJson.dependencies?.bun).toBeUndefined();
+    expect(packageJson.engines?.bun).toBe("1.4.0");
+    expect(packageJson.optionalDependencies).toMatchObject({
+      "@oven/bun-darwin-aarch64": "1.4.0",
+      "@oven/bun-darwin-x64": "1.4.0",
+    });
+  });
+
   test("status JSON exposes only the focused Antigravity contract", () => {
     const result = runStatus("--json");
     expect(result.exitCode).toBe(0);

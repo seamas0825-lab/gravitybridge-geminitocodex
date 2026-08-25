@@ -116,3 +116,11 @@ jobs:
           npm install --global --prefix "$RUNNER_TEMP/install" "$package_tarball"
           "$RUNNER_TEMP/install/bin/gravitybridge" --version
           "$RUNNER_TEMP/install/bin/gravitybridge" --help
+
+      - name: Install CLI from GitHub source
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --prefix "$RUNNER_TEMP/source-install" "github:${GITHUB_REPOSITORY}#${GITHUB_SHA}"
+          "$RUNNER_TEMP/source-install/bin/gravitybridge" --version
+          "$RUNNER_TEMP/source-install/bin/gravitybridge" --help

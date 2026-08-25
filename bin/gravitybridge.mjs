@@ -14,11 +14,28 @@ const cliPath = join(here, "..", "src", "cli", "index.ts");
 const launchProofPrefix = "--ocx-internal-launch-proof=";
 
 function resolveBun() {
+  const platformPackage = process.platform === "darwin"
+    ? process.arch === "arm64"
+      ? "@oven/bun-darwin-aarch64"
+      : process.arch === "x64"
+        ? "@oven/bun-darwin-x64"
+        : null
+    : null;
+  if (platformPackage) {
+    try {
+      const binaryRoot = dirname(require.resolve(`${platformPackage}/package.json`));
+      const candidate = join(binaryRoot, "bin", "bun");
+      if (isRealBunBinary(candidate)) return candidate;
+    } catch { /* fall through to the legacy wrapper lookup */ }
+  }
+
   let bunRoot;
   try {
     bunRoot = dirname(require.resolve("bun/package.json"));
   } catch {
-    console.error("GravityBridge could not find its bundled Bun runtime. Reinstall the package with npm lifecycle scripts enabled.");
+    console.error(process.platform === "darwin"
+      ? "GravityBridge could not find its bundled Bun runtime. Reinstall the package."
+      : "GravityBridge Beta currently supports macOS only.");
     process.exit(1);
   }
   for (const name of ["bun.exe", "bun"]) {
@@ -27,7 +44,7 @@ function resolveBun() {
   }
   const installer = join(bunRoot, "install.js");
   if (existsSync(installer)) {
-    console.error("GravityBridge's bundled Bun runtime is incomplete. Reinstall with: npm install -g github:seamas0825-lab/gravitybridge");
+    console.error("GravityBridge's bundled Bun runtime is incomplete. Reinstall the package.");
   } else {
     console.error("GravityBridge's bundled Bun runtime is missing. Reinstall the package.");
   }
