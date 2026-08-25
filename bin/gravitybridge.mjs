@@ -14,6 +14,9 @@ const cliPath = join(here, "..", "src", "cli", "index.ts");
 const launchProofPrefix = "--ocx-internal-launch-proof=";
 
 function resolveBun() {
+  const configuredBinary = process.env.GRAVITYBRIDGE_BUN_PATH?.trim();
+  if (configuredBinary && isRealBunBinary(configuredBinary)) return configuredBinary;
+
   const platformPackage = process.platform === "darwin"
     ? process.arch === "arm64"
       ? "@oven/bun-darwin-aarch64"

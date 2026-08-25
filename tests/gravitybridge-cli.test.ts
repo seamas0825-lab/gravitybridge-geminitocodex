@@ -23,6 +23,7 @@ function runStatus(...args: string[]) {
       OPENCODEX_HOME: state,
       CODEX_HOME: codex,
       GRAVITYBRIDGE_NO_BROWSER: "1",
+      GRAVITYBRIDGE_BUN_PATH: process.execPath,
     },
     stdout: "pipe",
     stderr: "pipe",
