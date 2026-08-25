@@ -103,6 +103,7 @@ import {
   isMissingPathError,
   nextAtomicTempSequence,
 } from "./config/atomic-write";
+import { runtimeDefaultPort } from "./gravitybridge/runtime";
 export {
   AtomicWriteResidualTempError,
   AtomicWriteSecretResidualError,
@@ -839,6 +840,11 @@ const gravityBridgeStateSchema = z.object({
   schema: z.literal(1),
   acceptedRiskAt: z.string().datetime().optional(),
   configuredAt: z.string().datetime().optional(),
+  codexHomes: z.array(z.string().trim().min(1)).max(64).optional(),
+  autoRepair: z.boolean().optional(),
+  autoDiscoverCodexHomes: z.boolean().optional(),
+  excludedCodexHomes: z.array(z.string().trim().min(1)).max(64).optional(),
+  rulesVersion: z.number().int().min(1).optional(),
   baseline: z.object({
     providerPresent: z.boolean(),
     providerSelectedModels: z.object({ present: z.boolean(), value: z.array(z.string()).optional() }).strict(),
@@ -3018,7 +3024,7 @@ export function getDefaultConfig(): OcxConfig {
   // gpt-* requests forward the caller's incoming OAuth headers to the ChatGPT backend.
   // Adding extra providers (e.g. opencode-go) and switching defaultProvider is a user/runtime choice.
   return {
-    port: 10100,
+    port: runtimeDefaultPort(),
     emptyCompletionRetry: false,
     managementUsageMaxReadBytes: 64 * 1024 * 1024,
     appOwnedMemoryBudgetMb: DEFAULT_APP_OWNED_MEMORY_BUDGET_BYTES / (1024 * 1024),
