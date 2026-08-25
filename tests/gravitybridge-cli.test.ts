@@ -20,7 +20,9 @@ function runStatus(...args: string[]) {
     cwd: join(import.meta.dir, ".."),
     env: {
       ...process.env,
-      OPENCODEX_HOME: state,
+      OPENCODEX_HOME: join(root, "must-not-be-used"),
+      GRAVITYBRIDGE_HOME: state,
+      GRAVITYBRIDGE_CODEX_HOME: codex,
       CODEX_HOME: codex,
       GRAVITYBRIDGE_NO_BROWSER: "1",
       GRAVITYBRIDGE_BUN_PATH: process.execPath,
@@ -31,6 +33,30 @@ function runStatus(...args: string[]) {
 }
 
 describe("GravityBridge CLI product surface", () => {
+  test("uses product-specific runtime and ownership identities", () => {
+    const result = Bun.spawnSync([
+      process.execPath,
+      "-e",
+      [
+        'import { runtimeDefaultPort, runtimeServiceId } from "./src/gravitybridge/runtime.ts";',
+        'import { CONFIG_OWNER_FILE, CONFIG_UNINSTALL_MANIFEST } from "./src/lib/config-ownership.ts";',
+        "console.log(JSON.stringify({ port: runtimeDefaultPort(), service: runtimeServiceId(), owner: CONFIG_OWNER_FILE, uninstall: CONFIG_UNINSTALL_MANIFEST }));",
+      ].join(" "),
+    ], {
+      cwd: join(import.meta.dir, ".."),
+      env: { ...process.env, GRAVITYBRIDGE_MODE: "1" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout.toString())).toEqual({
+      port: 10101,
+      service: "gravitybridge",
+      owner: ".gravitybridge-owner.json",
+      uninstall: ".gravitybridge-uninstall.json",
+    });
+  });
+
   test("bundles macOS Bun binaries without the lifecycle installer wrapper", () => {
     const packageJson = JSON.parse(readFileSync(join(import.meta.dir, "..", "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
@@ -64,7 +90,9 @@ describe("GravityBridge CLI product surface", () => {
     expect(body.codex).toEqual({
       mainAccountPreserved: true,
       mainModelPreserved: true,
+      targets: expect.any(Array),
     });
+    expect((body.codex as { targets?: Array<{ home?: string }> })?.targets?.[0]?.home).toContain("/codex");
   });
 
   test("human status does not leak the upstream multi-provider CLI", () => {
